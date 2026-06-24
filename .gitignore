@@ -7,3 +7,4 @@ dist/
 backend/prisma/migrations/
 frontend/dist/
 .vite/
+backend/prisma/migrations/

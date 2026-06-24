@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
 import { v4 as uuid } from 'uuid';
-import { QuestionFilter } from 'shared/src/index';
 
 export const questionRouter = Router();
 
@@ -70,6 +69,25 @@ questionRouter.get('/', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/questions/stats/summary - 统计概览（必须在 /:id 之前注册）
+questionRouter.get('/stats/summary', async (_req: Request, res: Response) => {
+  try {
+    const [total, bySubject, byType, byDifficulty] = await Promise.all([
+      prisma.question.count(),
+      prisma.question.groupBy({ by: ['subject'], _count: true }),
+      prisma.question.groupBy({ by: ['type'], _count: true }),
+      prisma.question.groupBy({ by: ['difficulty'], _count: true }),
+    ]);
+
+    res.json({
+      success: true,
+      data: { total, bySubject, byType, byDifficulty },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/questions/:id
 questionRouter.get('/:id', async (req: Request, res: Response) => {
   try {
@@ -92,6 +110,16 @@ questionRouter.get('/:id', async (req: Request, res: Response) => {
 questionRouter.post('/', async (req: Request, res: Response) => {
   try {
     const body = req.body;
+
+    // Input validation
+    if (!body.content?.trim()) return res.status(400).json({ success: false, error: '题干不能为空' });
+    if (!body.answer?.trim()) return res.status(400).json({ success: false, error: '答案不能为空' });
+    const validSubjects = ['chinese', 'math', 'english', 'history', 'physics', 'chemistry', 'biology', 'geography', 'politics'];
+    if (!validSubjects.includes(body.subject)) return res.status(400).json({ success: false, error: '学科无效' });
+    const validTypes = ['choice', 'multi_choice', 'fill_blank', 'short_answer', 'essay', 'true_false'];
+    if (!validTypes.includes(body.type)) return res.status(400).json({ success: false, error: '题型无效' });
+    if (body.difficulty < 1 || body.difficulty > 5) return res.status(400).json({ success: false, error: '难度范围 1-5' });
+
     const now = Math.floor(Date.now() / 1000);
     const id = body.id || uuid();
 
@@ -126,14 +154,19 @@ questionRouter.put('/:id', async (req: Request, res: Response) => {
     const body = req.body;
     const now = Math.floor(Date.now() / 1000);
 
+    // Whitelist allowed fields
+    const allowed = ['subject', 'category', 'subCategory', 'type', 'difficulty', 'content', 'answer', 'analysis', 'source'];
+    const data: any = {};
+    for (const f of allowed) {
+      if (body[f] !== undefined) data[f] = body[f];
+    }
+    if (body.options !== undefined) data.options = JSON.stringify(body.options);
+    if (body.tags !== undefined) data.tags = JSON.stringify(body.tags);
+    data.updatedAt = now;
+
     const q = await prisma.question.update({
       where: { id: req.params.id },
-      data: {
-        ...body,
-        options: body.options ? JSON.stringify(body.options) : undefined,
-        tags: body.tags ? JSON.stringify(body.tags) : undefined,
-        updatedAt: now,
-      },
+      data,
     });
 
     res.json({ success: true, data: q });
@@ -165,20 +198,4 @@ questionRouter.post('/batch-delete', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/questions/stats/summary - 统计概览
-questionRouter.get('/stats/summary', async (_req: Request, res: Response) => {
-  try {
-    const [total, bySubject, byType] = await Promise.all([
-      prisma.question.count(),
-      prisma.question.groupBy({ by: ['subject'], _count: true }),
-      prisma.question.groupBy({ by: ['type'], _count: true }),
-    ]);
 
-    res.json({
-      success: true,
-      data: { total, bySubject, byType },
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});

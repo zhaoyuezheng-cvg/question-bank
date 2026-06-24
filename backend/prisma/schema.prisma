@@ -26,6 +26,8 @@ model Question {
 
   // Relations
   paperItems  PaperQuestion[]
+  errorItems  ErrorBook[]
+  favorites   Favorite[]
 
   @@index([subject])
   @@index([category])
@@ -85,4 +87,47 @@ model Category {
   @@index([subject])
   @@index([parentId])
   @@unique([subject, name, parentId])
+}
+
+// ---- 错题本 ----
+model ErrorBook {
+  id          String @id
+  questionId  String
+  wrongAnswer String  // 用户的错误答案
+  errorNote   String? // 错误原因备注
+  isResolved  Boolean @default(false) // 是否已掌握
+  createdAt   Int
+  updatedAt   Int
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([isResolved])
+}
+
+// ---- 收藏夹 ----
+model Favorite {
+  id         String @id
+  questionId String
+  note       String? // 收藏备注
+  createdAt  Int
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@unique([questionId])
+}
+
+// ---- 答题记录 ----
+model PracticeRecord {
+  id          String @id
+  questionId  String
+  userAnswer  String
+  isCorrect   Boolean
+  timeSpent   Int? // 用时（秒）
+  createdAt   Int
+
+  @@index([questionId])
+  @@index([isCorrect])
+  @@index([createdAt])
 }

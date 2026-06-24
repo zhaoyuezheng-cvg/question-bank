@@ -46,6 +46,21 @@ const routes = [
     name: 'import',
     component: () => import('@/views/ImportView.vue'),
   },
+  {
+    path: '/practice',
+    name: 'practice',
+    component: () => import('@/views/PracticeView.vue'),
+  },
+  {
+    path: '/practice/errors',
+    name: 'error-book',
+    component: () => import('@/views/ErrorBookView.vue'),
+  },
+  {
+    path: '/favorites',
+    name: 'favorites',
+    component: () => import('@/views/FavoritesView.vue'),
+  },
 ];
 
 const router = createRouter({

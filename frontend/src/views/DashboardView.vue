@@ -41,7 +41,8 @@ import type { Subject } from 'shared/src/index';
 const stats = ref([
   { icon: '📝', label: '题目总数', value: 0 },
   { icon: '📄', label: '试卷数量', value: 0 },
-  { icon: '🏷️', label: '标签数量', value: 0 },
+  { icon: '🎯', label: '已答题数', value: 0 },
+  { icon: '📊', label: '正确率', value: '0%' },
 ]);
 
 const subjectStats = ref<{ subject: string; count: number; pct: number }[]>([]);
@@ -59,20 +60,29 @@ onMounted(async () => {
 
     stats.value[0].value = qJson.data?.total || 0;
     stats.value[1].value = pJson.data?.total || 0;
-    stats.value[2].value = tJson.data?.length || 0;
 
-    // Fetch subject distribution
-    const allRes = await fetch('/api/questions?pageSize=1000');
-    const allJson = await allRes.json();
-    if (allJson.success) {
-      const map = new Map<string, number>();
-      for (const q of allJson.data.items) {
-        map.set(q.subject, (map.get(q.subject) || 0) + 1);
+    // Fetch practice stats
+    try {
+      const psRes = await fetch('/api/practice/stats');
+      const psJson = await psRes.json();
+      if (psJson.success) {
+        stats.value[2].value = psJson.data.totalAnswered;
+        stats.value[3].value = psJson.data.accuracy + '%';
       }
-      const max = Math.max(...map.values(), 1);
-      subjectStats.value = Array.from(map.entries())
-        .map(([subject, count]) => ({ subject, count, pct: (count / max) * 100 }))
-        .sort((a, b) => b.count - a.count);
+    } catch {}
+
+    // Fetch subject distribution from stats API
+    try {
+      const statsRes = await fetch('/api/questions/stats/summary');
+      const statsJson = await statsRes.json();
+      if (statsJson.success) {
+        const max = Math.max(...statsJson.data.bySubject.map((s: any) => s._count), 1);
+        subjectStats.value = statsJson.data.bySubject
+          .map((s: any) => ({ subject: s.subject, count: s._count, pct: (s._count / max) * 100 }))
+          .sort((a: any, b: any) => b.count - a.count);
+      }
+    } catch {
+      // fallback
     }
   } catch (e) {
     console.error('Dashboard load error:', e);

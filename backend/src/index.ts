@@ -5,6 +5,7 @@ import { paperRouter } from './routes/papers';
 import { tagRouter } from './routes/tags';
 import { categoryRouter } from './routes/categories';
 import { importRouter } from './routes/import';
+import { practiceRouter } from './routes/practice';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,6 +20,7 @@ app.use('/api/papers', paperRouter);
 app.use('/api/tags', tagRouter);
 app.use('/api/categories', categoryRouter);
 app.use('/api/import', importRouter);
+app.use('/api/practice', practiceRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

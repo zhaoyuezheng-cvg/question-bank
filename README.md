@@ -1,6 +1,6 @@
 # 📚 专属私人题库系统
 
-一个支持 LaTeX 公式、Markdown 混排、完美打印的私人题库管理系统。
+一个支持 LaTeX 公式、Markdown 混排、在线答题、错题本、完美打印的私人题库管理系统。
 
 ## 技术栈
 
@@ -10,7 +10,7 @@
 | 后端 | Express 4 + TypeScript |
 | 数据库 | SQLite (Prisma ORM) |
 | 渲染 | markdown-it + KaTeX |
-| 打印 | Paged.js + CSS @media print |
+| 打印 | CSS @media print |
 
 ## 快速开始
 
@@ -18,77 +18,57 @@
 # 1. 安装依赖
 npm install
 
-# 2. 初始化数据库
-cd backend && npx prisma migrate dev && npx tsx src/seed.ts && cd ..
+# 2. 初始化数据库 + 填充测试题（30道，覆盖9个学科）
+cd backend
+npx prisma migrate dev
+npx tsx src/seed.ts
+cd ..
 
-# 3. 启动开发服务器
+# 3. 启动
 npm run dev
 ```
 
 - 前端：http://localhost:5173
 - 后端：http://localhost:3000
 
-## 项目结构
+## 功能全景
 
-```
-question-bank/
-├── shared/          # 共享类型定义
-│   └── src/index.ts # Question, ExamPaper 等接口
-├── backend/         # Express 后端
-│   ├── prisma/      # 数据库 Schema
-│   └── src/
-│       ├── index.ts           # 入口
-│       ├── prisma.ts          # Prisma 客户端
-│       ├── routes/
-│       │   ├── questions.ts   # 题目 CRUD + 筛选
-│       │   ├── papers.ts      # 试卷 CRUD
-│       │   ├── tags.ts        # 标签管理
-│       │   ├── categories.ts  # 分类树
-│       │   └── import.ts      # 批量导入
-│       └── seed.ts            # 种子数据
-└── frontend/        # Vue 3 前端
-    └── src/
-        ├── views/
-        │   ├── DashboardView.vue      # 仪表盘
-        │   ├── QuestionListView.vue   # 题目列表
-        │   ├── QuestionEditView.vue   # 题目编辑（实时预览）
-        │   ├── PaperListView.vue      # 试卷列表
-        │   ├── PaperEditView.vue      # 组卷编辑
-        │   ├── PaperDetailView.vue    # 试卷查看/打印
-        │   └── ImportView.vue         # 批量导入
-        ├── stores/                    # Pinia 状态管理
-        ├── utils/
-        │   ├── markdown.ts            # Markdown + LaTeX 渲染
-        │   └── constants.ts           # 常量映射
-        └── assets/main.css            # 全局样式
-```
-
-## 功能模块
-
-### 📝 题目管理
-- 按学科/题型/难度/关键词多维筛选
-- 支持 9 个学科（语数英理化生政史地）
-- 6 种题型（单选/多选/填空/简答/论述/判断）
-- 5 级难度分级
-- 批量删除
+### 📝 题库管理
+- **9 大学科**：语数英理化生政史地
+- **6 种题型**：单选 / 多选 / 填空 / 简答 / 论述 / 判断
+- **5 级难度**：基础 → 较易 → 中等 → 较难 → 困难
+- **多维筛选**：学科 / 题型 / 难度 / 分类 / 关键词
+- **批量删除**：勾选多题一键删除
 
 ### ✏️ 题目编辑
-- Markdown + LaTeX 实时预览
-- 支持 `$...$` 行内公式和 `$$...$$` 块级公式
-- 支持 `==下划线==` 和 `___` 填空标记
-- 自定义标签系统
+- **实时预览**：左编辑右预览，所见即所得
+- **LaTeX 公式**：`$E=mc^2$` 行内，`$$\int_0^1$$` 块级
+- **Markdown**：标题、列表、引用、代码块
+- **特殊语法**：`==下划线==`、`___` 填空横线
+- **自定义标签**：灵活标记，便于组卷筛选
 
 ### 📄 试卷组卷
-- 从题库中选题组卷
-- 拖拽排序（上移/下移）
+- 从题库中选题，支持拖拽排序
 - 自定义页眉、字号、答题区行数
 - 可选显示/隐藏答案和解析
+- 一键打印
 
-### 🖨️ 打印排版
-- Paged.js 驱动的完美分页
-- 答题横线不被截断
-- 大段材料题不跨页断裂
-- 打印时自动隐藏操作按钮
+### 🎯 答题练习（新增）
+- **随机组卷**：按学科、题数随机抽取
+- **即时反馈**：提交后立刻看到对错 + 解析
+- **计时功能**：记录答题用时
+- **自动错题本**：答错自动收录错题本
+
+### 📝 错题本（新增）
+- **自动收录**：答题答错自动加入
+- **掌握标记**：标记「已掌握」/「未掌握」
+- **筛选查看**：按学科、掌握状态筛选
+- **复习解析**：查看正确答案和详细解析
+
+### ❤️ 收藏夹（新增）
+- 答题时一键收藏重要题目
+- 按学科筛选查看
+- 可添加收藏备注
 
 ### 📥 批量导入
 - 支持 `【题干】【答案】【解析】` 标记格式
@@ -96,27 +76,129 @@ question-bank/
 - 自动识别选择题选项
 - 导入结果统计
 
+### 📊 数据统计（新增）
+- 题目总数 / 试卷数量
+- 已答题数 / 正确率
+- 学科分布可视化
+
+## 项目结构
+
+```
+question-bank/
+├── shared/              # 共享类型定义
+│   └── src/index.ts     # Question, ExamPaper 等接口
+├── backend/             # Express 后端
+│   ├── prisma/
+│   │   ├── schema.prisma    # 数据库模型
+│   │   └── question-bank.db # SQLite 数据文件
+│   └── src/
+│       ├── index.ts         # 入口
+│       ├── prisma.ts        # Prisma 客户端
+│       ├── routes/
+│       │   ├── questions.ts # 题目 CRUD + 筛选 + 统计
+│       │   ├── papers.ts    # 试卷 CRUD
+│       │   ├── tags.ts      # 标签管理
+│       │   ├── categories.ts# 分类树
+│       │   ├── import.ts    # 批量导入
+│       │   └── practice.ts  # 答题练习 + 错题本 + 收藏 + 随机组卷
+│       └── seed.ts          # 种子数据（30题）
+└── frontend/            # Vue 3 前端
+    └── src/
+        ├── views/
+        │   ├── DashboardView.vue      # 仪表盘
+        │   ├── QuestionListView.vue   # 题目列表
+        │   ├── QuestionEditView.vue   # 题目编辑
+        │   ├── PaperListView.vue      # 试卷列表
+        │   ├── PaperEditView.vue      # 组卷编辑
+        │   ├── PaperDetailView.vue    # 试卷查看/打印
+        │   ├── ImportView.vue         # 批量导入
+        │   ├── PracticeView.vue       # 答题练习
+        │   ├── ErrorBookView.vue      # 错题本
+        │   └── FavoritesView.vue      # 收藏夹
+        ├── stores/                    # Pinia 状态管理
+        ├── utils/
+        │   ├── markdown.ts            # Markdown + LaTeX 渲染
+        │   └── constants.ts           # 常量映射
+        └── assets/main.css            # 全局样式
+```
+
 ## API 接口
 
+### 题目管理
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | /api/questions | 查询题目（支持筛选+分页） |
+| GET | /api/questions/stats/summary | 统计概览 |
 | POST | /api/questions | 创建题目 |
-| PUT | /api/questions/:id | 更新题目 |
+| PUT | /api/questions/:id | 更新题目（白名单字段） |
 | DELETE | /api/questions/:id | 删除题目 |
 | POST | /api/questions/batch-delete | 批量删除 |
+
+### 试卷管理
+| 方法 | 路径 | 说明 |
+|------|------|------|
 | GET | /api/papers | 查询试卷 |
 | POST | /api/papers | 创建试卷 |
 | PUT | /api/papers/:id | 更新试卷 |
 | DELETE | /api/papers/:id | 删除试卷 |
+
+### 答题练习
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /api/practice/random-paper | 随机组卷 |
+| POST | /api/practice/submit | 提交答案（自动判分+入错题本） |
+| GET | /api/practice/stats | 答题统计 |
+
+### 错题本
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/practice/errors | 错题列表 |
+| POST | /api/practice/errors | 加入错题本 |
+| PUT | /api/practice/errors/:id | 标记掌握状态 |
+| DELETE | /api/practice/errors/:id | 移除错题 |
+
+### 收藏夹
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/practice/favorites | 收藏列表 |
+| POST | /api/practice/favorites | 收藏题目 |
+| DELETE | /api/practice/favorites/:questionId | 取消收藏 |
+
+### 其他
+| 方法 | 路径 | 说明 |
+|------|------|------|
 | GET | /api/tags | 获取标签 |
-| POST | /api/tags | 创建标签 |
 | GET | /api/categories | 获取分类树 |
 | POST | /api/import/text | 批量导入 |
 
-## 后续升级
+## 与市面同类软件对比
 
-当需要多设备同步时：
-1. 将 SQLite 替换为 PostgreSQL（修改 `prisma/schema.prisma` 的 `provider`）
-2. 添加 JWT 鉴权中间件
-3. 添加 WebSocket 实时同步
+| 功能 | 本系统 | 猿题库 | 作业帮 |
+|------|--------|--------|--------|
+| 私有部署 | ✅ | ❌ | ❌ |
+| 数据完全掌控 | ✅ | ❌ | ❌ |
+| LaTeX 公式 | ✅ | ✅ | ✅ |
+| 自定义标签 | ✅ | ❌ | ❌ |
+| 答题练习 | ✅ | ✅ | ✅ |
+| 错题本 | ✅ | ✅ | ✅ |
+| 收藏夹 | ✅ | ✅ | ✅ |
+| 随机组卷 | ✅ | ✅ | ❌ |
+| 打印排版 | ✅ | ❌ | ❌ |
+| 批量导入 | ✅ | ❌ | ❌ |
+| 离线使用 | ✅ | ❌ | ❌ |
+| 免费无广告 | ✅ | ❌ | ❌ |
+
+## 后续升级方向
+
+- [ ] 用户登录（JWT 鉴权）
+- [ ] 多设备同步（WebSocket）
+- [ ] 图片上传（题目插图）
+- [ ] OCR 拍照识别入库
+- [ ] AI 智能出题
+- [ ] 自适应难度推荐
+- [ ] PWA 离线支持
+- [ ] PostgreSQL 迁移（多用户场景）
+
+## 本地部署
+
+详见 [DEPLOY.md](./DEPLOY.md)
