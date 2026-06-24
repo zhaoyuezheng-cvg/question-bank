@@ -1,0 +1,88 @@
+// Prisma Schema for Question Bank System
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./question-bank.db"
+}
+
+model Question {
+  id          String   @id
+  subject     String
+  category    String
+  subCategory String
+  type        String
+  difficulty  Int
+  content     String
+  options     String?  // JSON array string
+  answer      String
+  analysis    String
+  tags        String?  // JSON array string
+  source      String?
+  createdAt   Int
+  updatedAt   Int
+
+  // Relations
+  paperItems  PaperQuestion[]
+
+  @@index([subject])
+  @@index([category])
+  @@index([subCategory])
+  @@index([type])
+  @@index([difficulty])
+}
+
+model ExamPaper {
+  id          String   @id
+  title       String
+  description String?
+  subject     String
+  totalScore  Int?
+  showAnalysis Boolean @default(true)
+  showAnswer   Boolean @default(false)
+  answerAreaLines Int   @default(5)
+  fontSize    Int      @default(14)
+  headerText  String?
+  footerText  String?
+  createdAt   Int
+  updatedAt   Int
+
+  // Relations
+  questions   PaperQuestion[]
+
+  @@index([subject])
+}
+
+model PaperQuestion {
+  id        String    @id
+  paperId   String
+  questionId String
+  order     Int
+  score     Int?
+
+  paper     ExamPaper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  question  Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([paperId, questionId])
+  @@index([paperId])
+  @@index([questionId])
+}
+
+model Tag {
+  id    String @id
+  name  String @unique
+  color String?
+}
+
+model Category {
+  id        String @id
+  subject   String
+  name      String
+  parentId  String?
+
+  @@index([subject])
+  @@index([parentId])
+  @@unique([subject, name, parentId])
+}

@@ -1,0 +1,331 @@
+<template>
+  <div>
+    <h1 style="margin-bottom: 16px;">{{ isEdit ? '✏️ 编辑试卷' : '➕ 新建试卷' }}</h1>
+
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="form-row">
+        <div class="form-group" style="flex: 2;">
+          <label class="form-label">试卷名称 *</label>
+          <input class="form-input" v-model="form.title" placeholder="如：2024年高三语文月考一" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">学科</label>
+          <select class="form-select" v-model="form.subject">
+            <option v-for="(label, key) in SUBJECT_LABELS" :key="key" :value="key">{{ label }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">总分</label>
+          <input class="form-input" type="number" v-model.number="form.totalScore" placeholder="150" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">说明</label>
+        <input class="form-input" v-model="form.description" placeholder="可选，试卷简要说明" />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">页眉文字</label>
+          <input class="form-input" v-model="form.headerText" placeholder="如：XX中学2024年月考" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">字号 (px)</label>
+          <input class="form-input" type="number" v-model.number="form.fontSize" min="10" max="24" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">答题区行数</label>
+          <input class="form-input" type="number" v-model.number="form.answerAreaLines" min="1" max="20" />
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <label class="checkbox-label">
+          <input type="checkbox" v-model="form.showAnswer" /> 显示答案
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" v-model="form.showAnalysis" /> 显示解析
+        </label>
+      </div>
+    </div>
+
+    <!-- Question selection -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">选题（已选 {{ selectedQuestions.length }} 道）</span>
+        <button class="btn btn-sm" @click="showPicker = true">➕ 添加题目</button>
+      </div>
+
+      <div v-if="!selectedQuestions.length" class="empty-state" style="padding: 24px;">
+        <p>尚未选择题目，点击「添加题目」从题库中选取</p>
+      </div>
+
+      <div v-else class="selected-questions">
+        <div v-for="(q, idx) in selectedQuestions" :key="q.id" class="sq-item">
+          <div class="sq-num">{{ idx + 1 }}</div>
+          <div class="sq-content">
+            <div class="markdown-body" v-html="renderMarkdown(q.content.slice(0, 200))"></div>
+            <div class="sq-meta">
+              <span class="tag">{{ getSubjectLabel(q.subject) }}</span>
+              <span class="tag">{{ q.category }}</span>
+            </div>
+          </div>
+          <div class="sq-actions">
+            <button class="btn btn-sm" @click="moveUp(idx)" :disabled="idx === 0">↑</button>
+            <button class="btn btn-sm" @click="moveDown(idx)" :disabled="idx === selectedQuestions.length - 1">↓</button>
+            <button class="btn btn-sm btn-danger" @click="removeQuestion(idx)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-group" style="margin-top: 20px;">
+        <button class="btn btn-primary" @click="handleSave" :disabled="saving || !form.title">
+          {{ saving ? '保存中...' : '💾 保存试卷' }}
+        </button>
+        <router-link to="/papers" class="btn">取消</router-link>
+      </div>
+    </div>
+
+    <!-- Question Picker Modal -->
+    <div v-if="showPicker" class="modal-overlay" @click.self="showPicker = false">
+      <div class="modal" style="max-width: 800px;">
+        <div class="modal-title">选择题目</div>
+        <div class="filter-bar" style="margin-bottom: 12px;">
+          <div class="form-group">
+            <select class="form-select" v-model="pickerFilter.subject" @change="loadPickerQuestions">
+              <option value="">全部学科</option>
+              <option v-for="(label, key) in SUBJECT_LABELS" :key="key" :value="key">{{ label }}</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1;">
+            <input class="form-input" v-model="pickerFilter.keyword" placeholder="搜索..." @keyup.enter="loadPickerQuestions" />
+          </div>
+          <button class="btn" @click="loadPickerQuestions">搜索</button>
+        </div>
+
+        <div class="picker-list">
+          <div v-for="q in pickerQuestions" :key="q.id" class="picker-item" @click="togglePick(q)">
+            <input type="checkbox" :checked="isPicked(q.id)" />
+            <div class="picker-content">
+              <div class="markdown-body" v-html="renderMarkdown(q.content.slice(0, 150))"></div>
+              <span class="tag" style="margin-top: 4px;">{{ getSubjectLabel(q.subject) }} · {{ q.category }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="btn-group" style="margin-top: 12px;">
+          <button class="btn btn-primary" @click="showPicker = false">确定 (已选 {{ selectedQuestions.length }} 道)</button>
+          <button class="btn" @click="showPicker = false">取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { usePaperStore } from '@/stores/paperStore';
+import { renderMarkdown } from '@/utils/markdown';
+import { SUBJECT_LABELS, getSubjectLabel } from '@/utils/constants';
+import type { Question, Subject } from 'shared/src/index';
+
+const route = useRoute();
+const router = useRouter();
+const paperStore = usePaperStore();
+
+const isEdit = computed(() => !!route.params.id);
+const saving = ref(false);
+const showPicker = ref(false);
+const selectedQuestions = ref<Question[]>([]);
+const pickerQuestions = ref<Question[]>([]);
+
+const form = ref({
+  title: '',
+  description: '',
+  subject: 'chinese' as Subject,
+  totalScore: 150,
+  headerText: '',
+  fontSize: 14,
+  answerAreaLines: 5,
+  showAnswer: false,
+  showAnalysis: true,
+});
+
+const pickerFilter = ref({ subject: '', keyword: '' });
+
+async function loadPickerQuestions() {
+  const params = new URLSearchParams();
+  params.set('pageSize', '100');
+  if (pickerFilter.value.subject) params.set('subject', pickerFilter.value.subject);
+  if (pickerFilter.value.keyword) params.set('keyword', pickerFilter.value.keyword);
+  const res = await fetch(`/api/questions?${params}`);
+  const json = await res.json();
+  if (json.success) pickerQuestions.value = json.data.items;
+}
+
+function isPicked(id: string) {
+  return selectedQuestions.value.some(q => q.id === id);
+}
+
+function togglePick(q: Question) {
+  const idx = selectedQuestions.value.findIndex(s => s.id === q.id);
+  if (idx >= 0) {
+    selectedQuestions.value.splice(idx, 1);
+  } else {
+    selectedQuestions.value.push(q);
+  }
+}
+
+function removeQuestion(idx: number) {
+  selectedQuestions.value.splice(idx, 1);
+}
+
+function moveUp(idx: number) {
+  if (idx <= 0) return;
+  const arr = selectedQuestions.value;
+  [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+}
+
+function moveDown(idx: number) {
+  const arr = selectedQuestions.value;
+  if (idx >= arr.length - 1) return;
+  [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+}
+
+async function handleSave() {
+  if (!form.value.title.trim()) {
+    alert('试卷名称不能为空');
+    return;
+  }
+
+  saving.value = true;
+  try {
+    const data = {
+      ...form.value,
+      questionIds: selectedQuestions.value.map(q => q.id),
+      layoutConfig: {
+        showAnswer: form.value.showAnswer,
+        showAnalysis: form.value.showAnalysis,
+        answerAreaLines: form.value.answerAreaLines,
+        fontSize: form.value.fontSize,
+        headerText: form.value.headerText,
+      },
+    };
+
+    let res;
+    if (isEdit.value) {
+      res = await paperStore.updatePaper(route.params.id as string, data);
+    } else {
+      res = await paperStore.createPaper(data);
+    }
+
+    if (res.success) {
+      router.push('/papers');
+    } else {
+      alert('保存失败: ' + (res.error || '未知错误'));
+    }
+  } finally {
+    saving.value = false;
+  }
+}
+
+onMounted(async () => {
+  await loadPickerQuestions();
+
+  if (isEdit.value) {
+    const p = await paperStore.fetchPaper(route.params.id as string);
+    if (p) {
+      form.value = {
+        title: p.title,
+        description: p.description || '',
+        subject: p.subject,
+        totalScore: p.totalScore || 150,
+        headerText: (p as any).layoutConfig?.headerText || '',
+        fontSize: (p as any).layoutConfig?.fontSize || 14,
+        answerAreaLines: (p as any).layoutConfig?.answerAreaLines || 5,
+        showAnswer: (p as any).layoutConfig?.showAnswer || false,
+        showAnalysis: (p as any).layoutConfig?.showAnalysis ?? true,
+      };
+      selectedQuestions.value = (p as any).questions || [];
+    }
+  }
+});
+</script>
+
+<style scoped>
+.selected-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sq-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  align-items: flex-start;
+}
+
+.sq-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.sq-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.sq-meta {
+  margin-top: 4px;
+  display: flex;
+  gap: 4px;
+}
+
+.sq-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.picker-list {
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.picker-item {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.picker-item:hover {
+  background: #f8fafc;
+}
+
+.picker-content {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+</style>
