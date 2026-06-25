@@ -77,7 +77,18 @@ function parseImportText(
   const results: ParsedQuestion[] = [];
 
   // Split by 【题干】 marker, or by numbered patterns like "1." "2." etc.
-  const blocks = text.split(/(?=【题干】|(?=\d+[.、．]\s))/).filter(b => b.trim());
+  // Split by markers, numbered patterns, or double newlines
+  let blocks: string[] = [];
+  // First try marker-based split
+  if (text.includes('【题干】')) {
+    blocks = text.split(/(?=【题干】)/).filter(b => b.trim());
+  } else if (/^\d+[.、．]/m.test(text)) {
+    // Numbered format - split by number pattern at start of line
+    blocks = text.split(/(?=^\d+[.、．])/m).filter(b => b.trim());
+  } else {
+    // Split by blank lines (double newline)
+    blocks = text.split(/\n\s*\n/).filter(b => b.trim());
+  }
 
   for (const block of blocks) {
     try {

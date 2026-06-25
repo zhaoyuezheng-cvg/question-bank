@@ -61,6 +61,17 @@
       </div>
     </div>
 
+    <!-- Recent History -->
+    <div v-if="recentQuestions.length" class="card" style="padding: 12px 16px; margin-bottom: 12px;">
+      <div style="display: flex; align-items: center; gap: 8px; overflow-x: auto;">
+        <span style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">🕐 最近浏览：</span>
+        <router-link v-for="rq in recentQuestions" :key="rq.id" :to="`/questions/${rq.id}/edit`" class="recent-tag">
+          {{ rq.label }}
+        </router-link>
+        <button class="btn btn-sm btn-ghost" @click="clearRecent" style="font-size: 11px; white-space: nowrap;">清除</button>
+      </div>
+    </div>
+
     <!-- Table -->
     <div class="card" style="padding: 0; overflow: hidden;">
       <!-- Skeleton Loading -->
@@ -327,7 +338,30 @@ async function handleExportSelected() {
   }
 }
 
-onMounted(() => store.fetchQuestions());
+// Recent browsing history
+const recentQuestions = ref<{ id: string; label: string }[]>([]);
+
+function loadRecent() {
+  try {
+    const saved = localStorage.getItem('qb-recent-questions');
+    if (saved) recentQuestions.value = JSON.parse(saved);
+  } catch {}
+}
+
+function addToRecent(id: string, content: string) {
+  const label = content.slice(0, 30).replace(/[#*\n]/g, ' ').trim();
+  const list = recentQuestions.value.filter(r => r.id !== id);
+  list.unshift({ id, label });
+  recentQuestions.value = list.slice(0, 8);
+  localStorage.setItem('qb-recent-questions', JSON.stringify(recentQuestions.value));
+}
+
+function clearRecent() {
+  recentQuestions.value = [];
+  localStorage.removeItem('qb-recent-questions');
+}
+
+onMounted(() => { store.fetchQuestions(); loadRecent(); });
 </script>
 
 <style scoped>
@@ -366,4 +400,12 @@ onMounted(() => store.fetchQuestions());
 .pagination button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
 .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
 .page-info { font-size: 13px; color: var(--text-secondary); }
+
+.recent-tag {
+  display: inline-block; padding: 4px 10px; font-size: 12px;
+  background: var(--primary-50); color: var(--primary); border-radius: 999px;
+  text-decoration: none; white-space: nowrap; transition: all var(--transition-fast);
+  border: 1px solid transparent;
+}
+.recent-tag:hover { border-color: var(--primary); background: var(--primary-100); }
 </style>

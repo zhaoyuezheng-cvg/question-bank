@@ -8,12 +8,13 @@
       <div class="btn-group">
         <router-link to="/papers" class="btn">← 返回列表</router-link>
         <router-link :to="`/papers/${paper.id}/edit`" class="btn">✏️ 编辑</router-link>
+        <button class="btn" @click="printPreview = !printPreview">{{ printPreview ? '退出预览' : '👁️ 打印预览' }}</button>
         <button class="btn btn-primary" @click="handlePrint">🖨️ 打印</button>
       </div>
     </div>
 
     <!-- Print preview -->
-    <div class="paper-print" ref="printArea">
+    <div class="paper-print" ref="printArea" :class="{ 'preview-mode': printPreview }">
       <div class="paper-header" v-if="paper.layoutConfig?.headerText">
         {{ paper.layoutConfig.headerText }}
       </div>
@@ -73,6 +74,7 @@ import type { QuestionType } from 'shared/src/index';
 const route = useRoute();
 const paperStore = usePaperStore();
 const printArea = ref<HTMLElement>();
+const printPreview = ref(false);
 
 const paper = computed(() => paperStore.currentPaper);
 
@@ -219,6 +221,17 @@ onMounted(() => {
   border-top: 1px solid #e2e8f0;
   padding-top: 12px;
   margin-top: 36px;
+}
+
+/* Print Preview Mode */
+.paper-print.preview-mode {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: white;
+  padding: 40px;
+  overflow-y: auto;
+  box-shadow: 0 0 60px rgba(0,0,0,0.3);
 }
 
 @media print {

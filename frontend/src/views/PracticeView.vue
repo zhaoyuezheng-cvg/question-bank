@@ -58,11 +58,12 @@
       <!-- Progress -->
       <div class="card" style="margin-bottom: 16px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <span style="font-weight: 600;">第 <strong style="color: var(--primary);">{{ currentIndex + 1 }}</strong> / {{ questions.length }} 题</span>
+          <span style="font-weight: 600;">{{ errorOnly ? "🎯 错题练习 " : "" }}第 <strong style="color: var(--primary);">{{ currentIndex + 1 }}</strong> / {{ questions.length }} 题</span>
           <div style="display: flex; gap: 16px; font-size: 13px; color: var(--text-secondary);">
             <span>✅ {{ correctCount }}</span>
             <span>❌ {{ wrongCount }}</span>
             <span>⏱️ {{ formatTime(elapsed) }}</span>
+            <button class="btn btn-sm" @click="togglePause" style="padding: 2px 8px; font-size: 11px;">{{ paused ? '▶️ 继续' : '⏸ 暂停' }}</button>
           </div>
         </div>
         <div class="progress-bar">
@@ -87,7 +88,7 @@
         <!-- Choice options -->
         <div v-if="currentQ.options?.length" class="options-list">
           <label
-            v-for="(opt, oi) in currentQ.options"
+            v-for="(opt, oi) in (shuffledOptions[currentIndex] || currentQ.options)"
             :key="oi"
             class="option-item"
             :class="{
@@ -193,6 +194,9 @@
               'opt-wrong': reviewResults[idx]?.userAnswer === String.fromCharCode(65 + oi) && !reviewResults[idx]?.isCorrect
             }">{{ String.fromCharCode(65 + oi) }}. {{ opt }}</span>
           </div>
+          <div style="margin-top: 8px; display: flex; gap: 6px;">
+            <button class="btn btn-sm" @click="addToFlashcard(q.id)">🃏 闪卡</button>
+          </div>
           <div v-if="!reviewResults[idx]?.isCorrect" style="margin-top: 8px; font-size: 13px;">
             <div><strong>你的答案：</strong>{{ reviewResults[idx]?.userAnswer || '未作答' }}</div>
             <div style="color: var(--success);"><strong>正确答案：</strong>{{ q.answer }}</div>
@@ -230,6 +234,8 @@ const favoriteIds = ref<Set<string>>(new Set());
 const showReview = ref(false);
 const reviewResults = ref<Record<number, { isCorrect: boolean; userAnswer: string }>>({});
 const errorOnly = ref(false);
+const paused = ref(false);
+const shuffledOptions = ref<Record<number, string[]>>({});
 const toast = inject<(type: string, msg: string) => void>('toast')!;
 let timer: any = null;
 
@@ -245,6 +251,24 @@ function formatTime(s: number) {
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+function shuffleArray(arr: string[]): string[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function togglePause() {
+  paused.value = !paused.value;
+  if (paused.value) {
+    if (timer) clearInterval(timer);
+  } else {
+    timer = setInterval(() => elapsed.value++, 1000);
+  }
 }
 
 async function startPractice() {
@@ -266,6 +290,12 @@ async function startPractice() {
       questions.value = paperJson.data.questions;
       started.value = true;
       currentIndex.value = 0;
+      // Shuffle options for choice questions
+      const shuffled: Record<number, string[]> = {};
+      paperJson.data.questions.forEach((q: any, i: number) => {
+        if (q.options?.length) shuffled[i] = shuffleArray(q.options);
+      });
+      shuffledOptions.value = shuffled;
       correctCount.value = 0;
       wrongCount.value = 0;
       finished.value = false;
@@ -435,8 +465,15 @@ function initHistoryChart() {
   window.addEventListener('resize', () => chart.resize());
 }
 
-onMounted(() => { loadHistory(); window.addEventListener('keydown', handleKeydown); });
-onUnmounted(() => { if (timer) clearInterval(timer); window.removeEventListener('keydown', handleKeydown); });
+function handleBeforeUnload(e: BeforeUnloadEvent) {
+  if (started.value && !finished.value) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+}
+
+onMounted(() => { loadHistory(); window.addEventListener('keydown', handleKeydown); window.addEventListener('beforeunload', handleBeforeUnload); });
+onUnmounted(() => { if (timer) clearInterval(timer); window.removeEventListener('keydown', handleKeydown); window.removeEventListener('beforeunload', handleBeforeUnload); });
 </script>
 
 <style scoped>

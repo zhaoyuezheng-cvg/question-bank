@@ -1,115 +1,123 @@
 <template>
-  <div class="app-layout" :data-theme="theme">
+  <div class="app-layout" :data-theme="theme" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <!-- Sidebar -->
-    <aside class="sidebar" :class="{ 'mobile-open': mobileOpen }">
+    <aside class="sidebar" :class="{ 'mobile-open': mobileOpen, collapsed: sidebarCollapsed }">
       <div class="sidebar-brand">
         <div class="sidebar-brand-icon">📚</div>
-        <div>
+        <div v-if="!sidebarCollapsed" class="sidebar-brand-text-wrap">
           <div class="sidebar-brand-text">私人题库</div>
           <div class="sidebar-brand-sub">Question Bank</div>
         </div>
       </div>
 
       <!-- Search trigger -->
-      <div class="sidebar-search" @click="openPalette">
+      <div v-if="!sidebarCollapsed" class="sidebar-search" @click="openPalette">
         <span class="sidebar-search-icon">🔍</span>
         <span class="sidebar-search-text">搜索...</span>
         <kbd class="sidebar-search-kbd">⌘K</kbd>
       </div>
+      <div v-else class="sidebar-search sidebar-search-icon-only" @click="openPalette" title="搜索 (⌘K)">
+        🔍
+      </div>
 
       <div class="sidebar-section">
-        <div class="sidebar-section-label">概览</div>
+        <div v-if="!sidebarCollapsed" class="sidebar-section-label">概览</div>
         <ul class="sidebar-nav">
           <li>
-            <router-link to="/" @click="closeMobile">
+            <router-link to="/" @click="closeMobile" :title="sidebarCollapsed ? '仪表盘' : ''">
               <span class="nav-icon">📊</span>
-              <span>仪表盘</span>
+              <span v-if="!sidebarCollapsed">仪表盘</span>
             </router-link>
           </li>
         </ul>
       </div>
 
       <div class="sidebar-section">
-        <div class="sidebar-section-label">题库</div>
+        <div v-if="!sidebarCollapsed" class="sidebar-section-label">题库</div>
         <ul class="sidebar-nav">
           <li>
-            <router-link to="/questions" @click="closeMobile">
+            <router-link to="/questions" @click="closeMobile" :title="sidebarCollapsed ? '题目管理' : ''">
               <span class="nav-icon">📝</span>
-              <span>题目管理</span>
+              <span v-if="!sidebarCollapsed">题目管理</span>
             </router-link>
           </li>
           <li>
-            <router-link to="/papers" @click="closeMobile">
+            <router-link to="/papers" @click="closeMobile" :title="sidebarCollapsed ? '试卷管理' : ''">
               <span class="nav-icon">📄</span>
-              <span>试卷管理</span>
+              <span v-if="!sidebarCollapsed">试卷管理</span>
             </router-link>
           </li>
           <li>
-            <router-link to="/import" @click="closeMobile">
+            <router-link to="/import" @click="closeMobile" :title="sidebarCollapsed ? '批量导入' : ''">
               <span class="nav-icon">📥</span>
-              <span>批量导入</span>
+              <span v-if="!sidebarCollapsed">批量导入</span>
             </router-link>
           </li>
         </ul>
       </div>
 
       <div class="sidebar-section">
-        <div class="sidebar-section-label">练习</div>
+        <div v-if="!sidebarCollapsed" class="sidebar-section-label">练习</div>
         <ul class="sidebar-nav">
           <li>
-            <router-link to="/practice" @click="closeMobile">
+            <router-link to="/practice" @click="closeMobile" :title="sidebarCollapsed ? '答题练习' : ''">
               <span class="nav-icon">🎯</span>
-              <span>答题练习</span>
+              <span v-if="!sidebarCollapsed">答题练习</span>
             </router-link>
           </li>
           <li>
-            <router-link to="/practice/errors" @click="closeMobile">
+            <router-link to="/practice/errors" @click="closeMobile" :title="sidebarCollapsed ? '错题本' : ''">
               <span class="nav-icon">📋</span>
-              <span>错题本</span>
+              <span v-if="!sidebarCollapsed">错题本</span>
             </router-link>
           </li>
           <li>
-            <router-link to="/favorites" @click="closeMobile">
+            <router-link to="/favorites" @click="closeMobile" :title="sidebarCollapsed ? '收藏夹' : ''">
               <span class="nav-icon">❤️</span>
-              <span>收藏夹</span>
+              <span v-if="!sidebarCollapsed">收藏夹</span>
             </router-link>
           </li>
         </ul>
       </div>
 
       <div class="sidebar-section">
-        <div class="sidebar-section-label">进阶</div>
+        <div v-if="!sidebarCollapsed" class="sidebar-section-label">进阶</div>
         <ul class="sidebar-nav">
           <li>
-            <router-link to="/exam" @click="closeMobile">
+            <router-link to="/exam" @click="closeMobile" :title="sidebarCollapsed ? '考试模拟' : ''">
               <span class="nav-icon">📋</span>
-              <span>考试模拟</span>
+              <span v-if="!sidebarCollapsed">考试模拟</span>
             </router-link>
           </li>
           <li>
-            <router-link to="/flashcards" @click="closeMobile">
+            <router-link to="/flashcards" @click="closeMobile" :title="sidebarCollapsed ? '闪卡记忆' : ''">
               <span class="nav-icon">🃏</span>
-              <span>闪卡记忆</span>
+              <span v-if="!sidebarCollapsed">闪卡记忆</span>
             </router-link>
           </li>
           <li>
-            <router-link to="/stats" @click="closeMobile">
+            <router-link to="/stats" @click="closeMobile" :title="sidebarCollapsed ? '数据分析' : ''">
               <span class="nav-icon">📈</span>
-              <span>数据分析</span>
+              <span v-if="!sidebarCollapsed">数据分析</span>
             </router-link>
           </li>
         </ul>
       </div>
 
       <div class="sidebar-footer">
-        <div class="sidebar-shortcuts">
+        <div v-if="!sidebarCollapsed" class="sidebar-shortcuts">
           <div class="shortcut-hint"><kbd>N</kbd> 新建题目</div>
           <div class="shortcut-hint"><kbd>/</kbd> 搜索</div>
         </div>
-        <button class="theme-toggle" @click="toggleTheme">
-          <span>{{ theme === 'dark' ? '☀️' : '🌙' }}</span>
-          <span>{{ theme === 'dark' ? '切换亮色' : '切换暗色' }}</span>
-        </button>
+        <div style="display: flex; gap: 4px;">
+          <button class="theme-toggle" @click="toggleTheme" :title="theme === 'dark' ? '切换亮色' : '切换暗色'" :style="sidebarCollapsed ? 'justify-content: center; padding: 8px;' : ''">
+            <span>{{ theme === 'dark' ? '☀️' : '🌙' }}</span>
+            <span v-if="!sidebarCollapsed">{{ theme === 'dark' ? '切换亮色' : '切换暗色' }}</span>
+          </button>
+          <button class="theme-toggle" @click="toggleSidebar" :title="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'" style="flex: 0; padding: 8px; width: 36px; justify-content: center;">
+            {{ sidebarCollapsed ? '»' : '«' }}
+          </button>
+        </div>
       </div>
     </aside>
 
@@ -185,13 +193,13 @@ function toggleTheme() {
   localStorage.setItem('qb-theme', theme.value);
 }
 
-onMounted(() => {
-  const saved = localStorage.getItem('qb-theme') as 'light' | 'dark' | null;
-  if (saved) {
-    theme.value = saved;
-    document.documentElement.setAttribute('data-theme', saved);
-  }
-});
+// ---- Sidebar Collapse ----
+const sidebarCollapsed = ref(false);
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  localStorage.setItem('qb-sidebar-collapsed', String(sidebarCollapsed.value));
+}
 
 // ---- Mobile ----
 const mobileOpen = ref(false);
@@ -200,20 +208,25 @@ function closeMobile() { mobileOpen.value = false; }
 // ---- Command Palette ----
 const paletteRef = ref();
 function openPalette() {
-  // Trigger the palette's open via keyboard event simulation
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
 }
 
 // ---- Keyboard Shortcuts ----
 onMounted(() => {
+  const saved = localStorage.getItem('qb-theme') as 'light' | 'dark' | null;
+  if (saved) {
+    theme.value = saved;
+    document.documentElement.setAttribute('data-theme', saved);
+  }
+  const collapsed = localStorage.getItem('qb-sidebar-collapsed');
+  if (collapsed === 'true') sidebarCollapsed.value = true;
+
   window.addEventListener('keydown', globalKeyHandler);
 });
 
 function globalKeyHandler(e: KeyboardEvent) {
   const tag = (e.target as HTMLElement)?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-
-  // N = new question
   if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
     router.push('/questions/new');
@@ -221,32 +234,27 @@ function globalKeyHandler(e: KeyboardEvent) {
 }
 
 // ---- Toast ----
-interface ToastAction {
-  label: string;
-  fn: () => void;
-}
-
+interface ToastAction { label: string; fn: () => void; }
 interface ToastItem {
   id: number;
   type: 'success' | 'error' | 'warning' | 'info';
   message: string;
   action?: ToastAction;
+  persistent?: boolean;
 }
 
 const toasts = ref<ToastItem[]>([]);
 let toastId = 0;
 
 function toastIcon(type: string) {
-  const icons: Record<string, string> = {
-    success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️',
-  };
-  return icons[type] || 'ℹ️';
+  return ({ success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' } as Record<string, string>)[type] || 'ℹ️';
 }
 
 function addToast(type: ToastItem['type'], message: string, duration = 4000, action?: ToastAction) {
   const id = ++toastId;
-  toasts.value.push({ id, type, message, action });
-  if (duration > 0) {
+  const persistent = !!action;
+  toasts.value.push({ id, type, message, action, persistent });
+  if (!persistent && duration > 0) {
     setTimeout(() => removeToast(id), duration);
   }
   return id;
@@ -259,12 +267,7 @@ function removeToast(id: number) {
 provide('toast', addToast);
 
 // ---- Confirm ----
-interface ConfirmOptions {
-  title?: string;
-  message: string;
-  icon?: string;
-}
-
+interface ConfirmOptions { title?: string; message: string; icon?: string; }
 const confirmState = ref<ConfirmOptions | null>(null);
 let confirmResolve: ((value: boolean) => void) | null = null;
 
@@ -298,95 +301,58 @@ provide('confirm', showConfirm);
   color: var(--text-sidebar);
   font-size: 13px;
 }
-
-.sidebar-search:hover {
-  background: rgba(255,255,255,0.12);
+.sidebar-search:hover { background: rgba(255,255,255,0.12); }
+.sidebar-search-icon-only {
+  justify-content: center;
+  margin: 8px 12px;
+  padding: 10px;
+  font-size: 16px;
 }
-
-.sidebar-search-icon {
-  font-size: 14px;
-  opacity: 0.6;
-}
-
-.sidebar-search-text {
-  flex: 1;
-  opacity: 0.5;
-}
-
+.sidebar-search-icon { font-size: 14px; opacity: 0.6; }
+.sidebar-search-text { flex: 1; opacity: 0.5; }
 .sidebar-search-kbd {
-  font-size: 10px;
-  padding: 2px 5px;
-  border-radius: 3px;
-  background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.15);
-  font-family: inherit;
-  opacity: 0.6;
+  font-size: 10px; padding: 2px 5px; border-radius: 3px;
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+  font-family: inherit; opacity: 0.6;
 }
+
+.sidebar-brand-text-wrap { overflow: hidden; }
 
 .sidebar-shortcuts {
-  padding: 8px 0;
-  margin-bottom: 8px;
+  padding: 8px 0; margin-bottom: 8px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
-
 .shortcut-hint {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--text-sidebar);
-  opacity: 0.5;
-  padding: 2px 0;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: var(--text-sidebar); opacity: 0.5; padding: 2px 0;
 }
-
 .shortcut-hint kbd {
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.15);
-  font-family: inherit;
-  min-width: 18px;
-  text-align: center;
+  font-size: 10px; padding: 1px 5px; border-radius: 3px;
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+  font-family: inherit; min-width: 18px; text-align: center;
 }
 
-.toast-msg {
-  flex: 1;
-}
-
+.toast-msg { flex: 1; }
 .toast-action {
-  background: none;
-  border: 1px solid currentColor;
-  color: inherit;
-  padding: 3px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all var(--transition-fast);
+  background: none; border: 1px solid currentColor; color: inherit;
+  padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;
+  cursor: pointer; white-space: nowrap; transition: all var(--transition-fast);
 }
+.toast-success .toast-action { color: var(--success); }
+.toast-action:hover { background: rgba(255,255,255,0.2); }
 
-.toast-success .toast-action {
-  color: var(--success);
-}
-.toast-action:hover {
-  background: rgba(255,255,255,0.2);
-}
-
-/* Toast transitions */
 .toast-enter-active { transition: all 0.3s ease; }
 .toast-leave-active { transition: all 0.2s ease; }
 .toast-enter-from { opacity: 0; transform: translateX(80px); }
 .toast-leave-to { opacity: 0; transform: translateX(80px); }
 
-.mobile-overlay {
-  display: none;
-}
+/* Collapsed sidebar */
+.sidebar.collapsed { width: var(--sidebar-collapsed-width); }
+.sidebar.collapsed .sidebar-brand { justify-content: center; padding: 24px 8px 20px; }
+.sidebar.collapsed .sidebar-nav li a { justify-content: center; padding: 10px; }
+.sidebar.collapsed .sidebar-nav li a .nav-icon { margin: 0; }
+.sidebar.collapsed .sidebar-footer { padding: 16px 8px; }
 
-@media (max-width: 768px) {
-  .mobile-overlay {
-    display: block;
-  }
-}
+.mobile-overlay { display: none; }
+@media (max-width: 768px) { .mobile-overlay { display: block; } }
 </style>

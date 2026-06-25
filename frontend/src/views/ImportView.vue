@@ -16,7 +16,7 @@
         <p style="margin-bottom: 12px;">支持以下方式导入，系统自动识别：</p>
         <div class="format-grid">
           <div class="format-example">
-            <strong>方式一：粘贴文本（带标记）</strong>
+            <strong>方式一：带标记格式</strong>
             <pre>【题干】补写出下列名句中的空缺部分：
 (1) 风急天高猿啸哀，____________。
 【答案】渚清沙白鸟飞回
@@ -25,18 +25,16 @@
 【来源】2024全国甲卷</pre>
           </div>
           <div class="format-example">
-            <strong>方式二：粘贴文本（编号格式）</strong>
-            <pre>1. 下列词语中加点字的读音完全正确的一项是（  ）
+            <strong>方式二：编号格式</strong>
+            <pre>1. 下列词语中加点字读音正确的一项是（  ）
 A. 踹（chuài）水   B. 筵（yàn）席
 【答案】A
 【解析】考查字音辨析</pre>
           </div>
         </div>
         <div style="margin-top: 12px;">
-          <strong>方式三：上传文件</strong>
-          <span style="font-size: 13px; color: var(--text-secondary); margin-left: 8px;">
-            支持 .txt / .docx / .pdf 文件，自动提取文本后导入
-          </span>
+          <strong>方式三：多题批量粘贴</strong>（空行分隔或编号分隔）
+          <span style="margin-left: 8px; font-size: 12px; color: var(--text-muted);">支持 .txt / .docx / .pdf 文件上传</span>
         </div>
       </div>
     </div>

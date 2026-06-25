@@ -170,11 +170,14 @@
         </div>
       </div>
 
-      <div class="btn-group" style="justify-content: center; margin-top: 24px;">
-        <button class="btn btn-primary" @click="reset">🔄 再考一次</button>
-        <router-link to="/practice" class="btn">🎯 去练习</router-link>
-        <router-link to="/practice/errors" class="btn">📝 错题本</router-link>
-      </div>
+      <div style="margin-top: 16px; text-align: center; font-size: 14px; color: var(--text-secondary);">
+          答错 {{ result.totalCount - result.correctCount }} 题已自动收录错题本
+        </div>
+        <div class="btn-group" style="justify-content: center; margin-top: 16px;">
+          <button class="btn btn-primary" @click="reset">🔄 再考一次</button>
+          <router-link to="/practice" class="btn">🎯 去练习</router-link>
+          <router-link to="/practice/errors" class="btn">📝 错题本</router-link>
+        </div>
     </div>
   </div>
 </template>
@@ -327,8 +330,15 @@ function reset() {
   if (timer) clearInterval(timer);
 }
 
-onMounted(() => { loadPapers(); loadHistory(); window.addEventListener('keydown', handleKeydown); });
-onUnmounted(() => { if (timer) clearInterval(timer); window.removeEventListener('keydown', handleKeydown); });
+function handleBeforeUnload(e: BeforeUnloadEvent) {
+  if (session.value?.status === 'in_progress') {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+}
+
+onMounted(() => { loadPapers(); loadHistory(); window.addEventListener('keydown', handleKeydown); window.addEventListener('beforeunload', handleBeforeUnload); });
+onUnmounted(() => { if (timer) clearInterval(timer); window.removeEventListener('keydown', handleKeydown); window.removeEventListener('beforeunload', handleBeforeUnload); });
 </script>
 
 <style scoped>

@@ -212,3 +212,66 @@ recommendRouter.get('/enhanced-stats', async (req: Request, res: Response) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// GET /api/recommend/suggest-difficulty/:id - 根据答题记录推荐难度
+recommendRouter.get('/suggest-difficulty/:id', async (req: Request, res: Response) => {
+  try {
+    const question = await prisma.question.findUnique({ where: { id: req.params.id } });
+    if (!question) return res.status(404).json({ success: false, error: '题目不存在' });
+
+    // Find questions in same subject+category with practice records
+    const similarQuestions = await prisma.question.findMany({
+      where: { subject: question.subject, category: question.category, id: { not: question.id } },
+      select: { id: true },
+      take: 50,
+    });
+
+    if (similarQuestions.length === 0) {
+      return res.json({ success: true, data: { suggested: question.difficulty, confidence: 'low', reason: '无同类题目数据' } });
+    }
+
+    const ids = similarQuestions.map(q => q.id);
+    const records = await prisma.practiceRecord.findMany({
+      where: { questionId: { in: ids } },
+      include: { question: { select: { difficulty: true } } },
+    });
+
+    if (records.length < 5) {
+      return res.json({ success: true, data: { suggested: question.difficulty, confidence: 'low', reason: '答题数据不足' } });
+    }
+
+    // Calculate accuracy by difficulty level
+    const byDiff: Record<number, { total: number; correct: number }> = {};
+    for (const r of records) {
+      const d = r.question.difficulty;
+      if (!byDiff[d]) byDiff[d] = { total: 0, correct: 0 };
+      byDiff[d].total++;
+      if (r.isCorrect) byDiff[d].correct++;
+    }
+
+    // Find the difficulty level where accuracy is closest to 60% (good challenge level)
+    let bestDiff = question.difficulty;
+    let bestScore = Infinity;
+    for (const [d, stats] of Object.entries(byDiff)) {
+      const acc = stats.correct / stats.total;
+      const score = Math.abs(acc - 0.6); // 60% accuracy = ideal difficulty
+      if (score < bestScore && stats.total >= 3) {
+        bestScore = score;
+        bestDiff = parseInt(d);
+      }
+    }
+
+    const confidence = records.length >= 20 ? 'high' : records.length >= 10 ? 'medium' : 'low';
+    res.json({
+      success: true,
+      data: {
+        suggested: bestDiff,
+        confidence,
+        reason: `基于 ${records.length} 条同类答题记录，${['基础','较易','中等','较难','困难'][bestDiff-1]}难度的正确率最接近60%`,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+

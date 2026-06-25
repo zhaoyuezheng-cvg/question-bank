@@ -9,6 +9,7 @@
         <button v-for="p in periods" :key="p.value" class="btn" :class="{ 'btn-primary': period === p.value }" @click="changePeriod(p.value)">
           {{ p.label }}
         </button>
+        <button class="btn" @click="exportReport">📊 导出报告</button>
       </div>
     </div>
 
@@ -245,6 +246,41 @@ async function loadData() {
 function changePeriod(p: string) {
   period.value = p;
   loadData();
+}
+
+function exportReport() {
+  const periodLabel = periods.find(p => p.value === period.value)?.label || '全部';
+  let md = `# 📊 数据分析报告 (${periodLabel})\n\n`;
+  md += `生成时间：${new Date().toLocaleString('zh-CN')}\n\n`;
+  md += `## 概览\n`;
+  md += `- 总答题数：${summary.value.totalRecords}\n`;
+  md += `- 总正确率：${summary.value.accuracy}%\n`;
+  md += `- 薄弱知识点：${weakAreas.value.length} 个\n\n`;
+
+  if (subjectStats.value.length) {
+    md += `## 学科正确率\n`;
+    md += `| 学科 | 答题数 | 正确数 | 正确率 |\n|------|--------|--------|--------|\n`;
+    for (const s of subjectStats.value) {
+      const name = getSubjectLabel(s.subject as Subject);
+      md += `| ${name} | ${s.total} | ${s.correct} | ${s.accuracy}% |\n`;
+    }
+    md += '\n';
+  }
+
+  if (categoryStats.value.length) {
+    md += `## 薄弱知识点 TOP 10\n`;
+    md += `| 排名 | 知识点 | 答题数 | 正确率 |\n|------|--------|--------|--------|\n`;
+    categoryStats.value.slice(0, 10).forEach((c, i) => {
+      const name = `${getSubjectLabel(c.subject as Subject)} · ${c.category}`;
+      md += `| ${i+1} | ${name} | ${c.total} | ${c.accuracy}% |\n`;
+    });
+  }
+
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `数据报告_${periodLabel}_${new Date().toISOString().slice(0,10)}.md`;
+  a.click(); URL.revokeObjectURL(url);
 }
 
 onMounted(loadData);

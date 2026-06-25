@@ -982,11 +982,21 @@ body {
 
 /* ========== Route Transition ========== */
 .route-enter-active {
-  animation: slideUp 0.3s ease;
+  transition: all 0.25s ease;
 }
 
 .route-leave-active {
-  animation: fadeIn 0.15s ease reverse;
+  transition: all 0.15s ease;
+}
+
+.route-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.route-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 /* ========== Scrollbar ========== */
@@ -1008,7 +1018,17 @@ body {
   background: var(--text-muted);
 }
 
+/* ========== Sidebar Collapsed ========== */
+.sidebar-collapsed .main-content {
+  margin-left: var(--sidebar-collapsed-width);
+}
+
 /* ========== Responsive ========== */
+@media (max-width: 1024px) {
+  .filter-bar { flex-wrap: wrap; }
+  .filter-bar .form-group { min-width: 120px; }
+}
+
 @media (max-width: 768px) {
   :root {
     --sidebar-width: 0px;
@@ -1041,6 +1061,30 @@ body {
     gap: 12px;
     align-items: flex-start;
   }
+
+  .page-header .btn-group {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  .data-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .card { padding: 16px; }
+
+  .stats-grid,
+  .summary-grid,
+  .result-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .btn-group { flex-wrap: wrap; }
+  .btn-group .btn { flex: 1; min-width: 0; }
 }
 
 /* ========== Print styles ========== */
