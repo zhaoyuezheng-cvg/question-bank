@@ -244,6 +244,31 @@ async function handleSave() {
 }
 
 onMounted(async () => {
+  // Check for clone mode
+  const cloneId = route.query.clone as string;
+  if (cloneId) {
+    const q = await store.fetchQuestion(cloneId);
+    if (q) {
+      form.value = {
+        subject: q.subject,
+        category: q.category,
+        subCategory: q.subCategory,
+        type: q.type,
+        difficulty: q.difficulty,
+        content: q.content,
+        answer: q.answer,
+        analysis: q.analysis,
+        tags: q.tags || [],
+        source: q.source || '',
+      };
+      if (q.options) {
+        optionsText.value = q.options.map((o: string, i: number) => `${String.fromCharCode(65 + i)}. ${o}`).join('\n');
+      }
+      toast('success', '已加载题目内容，请修改后保存为新题');
+    }
+    return;
+  }
+
   if (isEdit.value) {
     const q = await store.fetchQuestion(route.params.id as string);
     if (q) {

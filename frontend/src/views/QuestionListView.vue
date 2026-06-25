@@ -8,6 +8,7 @@
       <div class="btn-group">
         <button class="btn" @click="handleExport('csv')">📥 CSV</button>
         <button class="btn" @click="handleExport('word')">📥 Word</button>
+        <button v-if="selectedIds.length" class="btn" @click="handleExportSelected">📦 导出选中 ({{ selectedIds.length }})</button>
         <button v-if="selectedIds.length" class="btn" @click="showBatchModal = true">
           ⚡ 批量操作 ({{ selectedIds.length }})
         </button>
@@ -39,6 +40,15 @@
         <select class="form-select" v-model="filters.difficulty" @change="applyFilter">
           <option value="">全部难度</option>
           <option v-for="n in 5" :key="n" :value="n">{{ DIFFICULTY_LABELS[n as Difficulty] }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">排序</label>
+        <select class="form-select" v-model="sortBy" @change="applyFilter">
+          <option value="updatedAt">最近更新</option>
+          <option value="createdAt">创建时间</option>
+          <option value="difficulty_asc">难度 ↑</option>
+          <option value="difficulty_desc">难度 ↓</option>
         </select>
       </div>
       <div class="form-group" style="flex: 1; min-width: 200px;">
@@ -83,7 +93,7 @@
             <th style="width: 80px;">题型</th>
             <th style="width: 70px;">难度</th>
             <th style="width: 100px;">分类</th>
-            <th style="width: 120px;">操作</th>
+            <th style="width: 140px;">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -114,8 +124,9 @@
             </td>
             <td>
               <div class="btn-group">
-                <router-link :to="`/questions/${q.id}/edit`" class="btn btn-sm btn-ghost">✏️</router-link>
-                <button class="btn btn-sm btn-ghost" style="color: var(--danger);" @click="handleDelete(q)">🗑️</button>
+                <router-link :to="`/questions/${q.id}/edit`" class="btn btn-sm btn-ghost" title="编辑">✏️</router-link>
+                <router-link :to="`/questions/new?clone=${q.id}`" class="btn btn-sm btn-ghost" title="复制">📋</router-link>
+                <button class="btn btn-sm btn-ghost" style="color: var(--danger);" @click="handleDelete(q)" title="删除">🗑️</button>
               </div>
             </td>
           </tr>
@@ -126,10 +137,7 @@
     <!-- Pagination -->
     <div v-if="store.totalPages > 1" class="pagination">
       <button :disabled="store.page <= 1" @click="goPage(store.page - 1)">‹</button>
-      <template v-for="p in displayPages" :key="p">
-        <button v-if="p === '...'" disabled style="border: none; background: none;">...</button>
-        <button v-else :class="{ active: p === store.page }" @click="goPage(p as number)">{{ p }}</button>
-      </template>
+      <span class="page-info">{{ store.page }} / {{ store.totalPages }} (共 {{ store.total }} 题)</span>
       <button :disabled="store.page >= store.totalPages" @click="goPage(store.page + 1)">›</button>
     </div>
 
@@ -168,7 +176,7 @@
 import { ref, computed, onMounted, inject } from 'vue';
 import { useQuestionStore } from '@/stores/questionStore';
 import { renderMarkdown } from '@/utils/markdown';
-import { exportQuestionsCSV, exportQuestionsWord } from '@/utils/export';
+import { exportQuestionsCSV, exportQuestionsWord, exportQuestionsJSON } from '@/utils/export';
 import QuestionPopover from '@/components/QuestionPopover.vue';
 import {
   SUBJECT_LABELS, SUBJECT_COLORS, QUESTION_TYPE_LABELS,
@@ -182,6 +190,7 @@ const selectedIds = ref<string[]>([]);
 const showBatchModal = ref(false);
 const toast = inject<(type: string, msg: string, duration?: number, action?: any) => void>('toast')!;
 const confirmFn = inject<(opts: any) => Promise<boolean>>('confirm')!;
+const sortBy = ref('updatedAt');
 
 const filters = ref({
   subject: '',
@@ -200,24 +209,6 @@ const allSelected = computed(() =>
   store.questions.length > 0 && selectedIds.value.length === store.questions.length
 );
 
-const displayPages = computed(() => {
-  const pages: (number | string)[] = [];
-  const total = store.totalPages;
-  const cur = store.page;
-  if (total <= 7) {
-    for (let i = 1; i <= total; i++) pages.push(i);
-  } else {
-    pages.push(1);
-    if (cur > 3) pages.push('...');
-    for (let i = Math.max(2, cur - 1); i <= Math.min(total - 1, cur + 1); i++) {
-      pages.push(i);
-    }
-    if (cur < total - 2) pages.push('...');
-    pages.push(total);
-  }
-  return pages;
-});
-
 function applyFilter() {
   selectedIds.value = [];
   store.fetchQuestions({
@@ -225,14 +216,17 @@ function applyFilter() {
     type: (filters.value.type || undefined) as QuestionType | undefined,
     difficulty: filters.value.difficulty ? Number(filters.value.difficulty) as Difficulty : undefined,
     keyword: filters.value.keyword || undefined,
+    sortBy: sortBy.value,
   });
 }
 
-function goPage(p: number | string) {
-  if (typeof p === 'number') {
-    store.page = p;
-    applyFilter();
-  }
+function goPage(p: number) {
+  store.page = p;
+  store.fetchQuestions({
+    ...store.filter,
+    page: p,
+    sortBy: sortBy.value,
+  });
 }
 
 function toggleAll() {
@@ -243,12 +237,9 @@ function toggleAll() {
   }
 }
 
-// Undo delete
 async function handleDelete(q: any) {
   const ok = await confirmFn({ message: '确定删除此题目？', icon: '🗑️' });
   if (!ok) return;
-
-  // Store for undo
   const deleted = { ...q };
   await store.deleteQuestion(q.id);
   toast('success', '已删除', 5000, {
@@ -324,6 +315,18 @@ async function handleExport(format: 'csv' | 'word') {
   }
 }
 
+async function handleExportSelected() {
+  try {
+    const promises = selectedIds.value.map(id => fetch(`/api/questions/${id}`).then(r => r.json()));
+    const results = await Promise.all(promises);
+    const items = results.filter(r => r.success).map(r => r.data);
+    exportQuestionsJSON(items, `选中题目_${items.length}道`);
+    toast('success', `已导出 ${items.length} 道题目`);
+  } catch {
+    toast('error', '导出失败');
+  }
+}
+
 onMounted(() => store.fetchQuestions());
 </script>
 
@@ -347,4 +350,20 @@ onMounted(() => store.fetchQuestions());
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-light);
 }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+}
+.pagination button {
+  width: 36px; height: 36px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--bg-card);
+  cursor: pointer; font-size: 16px; transition: all var(--transition-fast);
+}
+.pagination button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+.page-info { font-size: 13px; color: var(--text-secondary); }
 </style>

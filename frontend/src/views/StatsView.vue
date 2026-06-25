@@ -5,30 +5,47 @@
         <span class="title-icon">📈</span>
         数据分析
       </h1>
+      <div class="btn-group">
+        <button v-for="p in periods" :key="p.value" class="btn" :class="{ 'btn-primary': period === p.value }" @click="changePeriod(p.value)">
+          {{ p.label }}
+        </button>
+      </div>
     </div>
 
     <!-- Summary -->
     <div class="stats-grid">
       <div class="stat-card-mini">
         <div class="stat-mini-val">{{ summary.totalRecords }}</div>
-        <div class="stat-mini-lbl">总答题数</div>
+        <div class="stat-mini-lbl">答题数</div>
       </div>
       <div class="stat-card-mini">
-        <div class="stat-mini-val">{{ weakAreas.length }}</div>
+        <div class="stat-mini-val" style="color: var(--success);">{{ summary.accuracy }}%</div>
+        <div class="stat-mini-lbl">正确率</div>
+      </div>
+      <div class="stat-card-mini">
+        <div class="stat-mini-val" style="color: var(--warning);">{{ weakAreas.length }}</div>
         <div class="stat-mini-lbl">薄弱知识点</div>
       </div>
       <div class="stat-card-mini">
-        <div class="stat-mini-val">{{ subjectStats.length }}</div>
+        <div class="stat-mini-val" style="color: var(--primary);">{{ subjectStats.length }}</div>
         <div class="stat-mini-lbl">涉及学科</div>
       </div>
     </div>
 
-    <!-- Subject Accuracy -->
-    <div class="card" style="margin-top: 16px;">
-      <div class="card-header">
-        <span class="card-title">📊 学科正确率</span>
+    <!-- Radar + Subject Charts -->
+    <div class="charts-row">
+      <div class="card" style="flex: 1;">
+        <div class="card-header">
+          <span class="card-title">🎯 学科能力雷达图</span>
+        </div>
+        <div ref="radarChartRef" class="chart-container" style="height: 280px;"></div>
       </div>
-      <div ref="subjectChartRef" class="chart-container"></div>
+      <div class="card" style="flex: 1;">
+        <div class="card-header">
+          <span class="card-title">📊 学科正确率</span>
+        </div>
+        <div ref="subjectChartRef" class="chart-container" style="height: 280px;"></div>
+      </div>
     </div>
 
     <!-- Difficulty Accuracy -->
@@ -77,24 +94,70 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue';
 import * as echarts from 'echarts';
-import { getSubjectLabel, SUBJECT_COLORS, DIFFICULTY_LABELS, DIFFICULTY_COLORS } from '@/utils/constants';
+import { getSubjectLabel, SUBJECT_LABELS, SUBJECT_COLORS, DIFFICULTY_LABELS, DIFFICULTY_COLORS } from '@/utils/constants';
 import type { Subject, Difficulty } from 'shared/src/index';
 
 const subjectChartRef = ref<HTMLElement>();
 const difficultyChartRef = ref<HTMLElement>();
 const trendChartRef = ref<HTMLElement>();
+const radarChartRef = ref<HTMLElement>();
 
-const summary = ref({ totalRecords: 0 });
+const period = ref('all');
+const periods = [
+  { label: '本周', value: 'week' },
+  { label: '本月', value: 'month' },
+  { label: '全部', value: 'all' },
+];
+
+const summary = ref({ totalRecords: 0, accuracy: 0 });
 const subjectStats = ref<any[]>([]);
 const categoryStats = ref<any[]>([]);
 const difficultyStats = ref<any[]>([]);
 const trend = ref<any[]>([]);
 const weakAreas = ref<any[]>([]);
 
+let charts: echarts.ECharts[] = [];
+
+function destroyCharts() {
+  charts.forEach(c => c.dispose());
+  charts = [];
+}
+
 function initCharts() {
-  // Subject chart
+  destroyCharts();
+
+  // Radar chart
+  if (radarChartRef.value && subjectStats.value.length) {
+    const chart = echarts.init(radarChartRef.value);
+    charts.push(chart);
+    const subjects = subjectStats.value.map(s => getSubjectLabel(s.subject as Subject));
+    const values = subjectStats.value.map(s => s.accuracy);
+    chart.setOption({
+      tooltip: {},
+      radar: {
+        indicator: subjects.map(name => ({ name, max: 100 })),
+        shape: 'polygon',
+        splitArea: { areaStyle: { color: ['rgba(99,102,241,0.05)', 'rgba(99,102,241,0.1)'] } },
+      },
+      series: [{
+        type: 'radar',
+        data: [{
+          value: values,
+          name: '正确率',
+          areaStyle: { color: 'rgba(99,102,241,0.2)' },
+          lineStyle: { color: '#6366f1', width: 2 },
+          itemStyle: { color: '#6366f1' },
+        }],
+        label: { show: true, formatter: '{c}%', fontSize: 11 },
+      }],
+    });
+    window.addEventListener('resize', () => chart.resize());
+  }
+
+  // Subject bar chart
   if (subjectChartRef.value && subjectStats.value.length) {
     const chart = echarts.init(subjectChartRef.value);
+    charts.push(chart);
     chart.setOption({
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'category', data: subjectStats.value.map(s => getSubjectLabel(s.subject as Subject)), axisLabel: { fontSize: 12 } },
@@ -116,6 +179,7 @@ function initCharts() {
   // Difficulty chart
   if (difficultyChartRef.value && difficultyStats.value.length) {
     const chart = echarts.init(difficultyChartRef.value);
+    charts.push(chart);
     chart.setOption({
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'category', data: difficultyStats.value.map(d => DIFFICULTY_LABELS[d.difficulty as Difficulty]) },
@@ -137,6 +201,7 @@ function initCharts() {
   // Trend chart
   if (trendChartRef.value && trend.value.length) {
     const chart = echarts.init(trendChartRef.value);
+    charts.push(chart);
     chart.setOption({
       tooltip: { trigger: 'axis' },
       legend: { data: ['答题数', '正确率'], bottom: 0 },
@@ -155,17 +220,19 @@ function initCharts() {
   }
 }
 
-onMounted(async () => {
-  const res = await fetch('/api/recommend/enhanced-stats');
+async function loadData() {
+  const params = new URLSearchParams();
+  if (period.value !== 'all') params.set('period', period.value);
+
+  const res = await fetch(`/api/recommend/enhanced-stats?${params}`);
   const json = await res.json();
   if (json.success) {
-    summary.value = { totalRecords: json.data.totalRecords };
+    summary.value = { totalRecords: json.data.totalRecords, accuracy: json.data.totalRecords > 0 ? Math.round(json.data.subjectStats.reduce((a: number, s: any) => a + s.correct, 0) / json.data.subjectStats.reduce((a: number, s: any) => a + s.total, 0) * 100) || 0 : 0 };
     subjectStats.value = json.data.subjectStats;
     categoryStats.value = json.data.categoryStats;
     difficultyStats.value = json.data.difficultyStats;
     trend.value = json.data.trend;
 
-    // Load weak areas
     const weakRes = await fetch('/api/recommend/weak?limit=5');
     const weakJson = await weakRes.json();
     if (weakJson.success) weakAreas.value = weakJson.data.weakAreas;
@@ -173,14 +240,24 @@ onMounted(async () => {
     await nextTick();
     initCharts();
   }
-});
+}
+
+function changePeriod(p: string) {
+  period.value = p;
+  loadData();
+}
+
+onMounted(loadData);
 </script>
 
 <style scoped>
-.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .stat-card-mini { padding: 20px; background: var(--bg-card); border-radius: var(--radius-lg); box-shadow: var(--shadow); text-align: center; border: 1px solid var(--border-light); }
 .stat-mini-val { font-size: 32px; font-weight: 800; color: var(--primary); }
 .stat-mini-lbl { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+.charts-row { display: flex; gap: 16px; margin-top: 16px; }
+@media (max-width: 768px) { .charts-row { flex-direction: column; } .stats-grid { grid-template-columns: repeat(2, 1fr); } }
 
 .chart-container { width: 100%; height: 200px; }
 

@@ -106,6 +106,18 @@ examRouter.post('/:id/submit', async (req: Request, res: Response) => {
     }
 
     const now = Math.floor(Date.now() / 1000);
+
+    // Auto-add wrong answers to error book
+    for (const r of results) {
+      if (!r.isCorrect && r.userAnswer) {
+        await prisma.errorBook.upsert({
+          where: { id: r.questionId + '_error' },
+          update: { wrongAnswer: r.userAnswer, updatedAt: now, isResolved: false },
+          create: { id: uuid(), questionId: r.questionId, wrongAnswer: r.userAnswer, createdAt: now, updatedAt: now },
+        }).catch(() => {});
+      }
+    }
+
     const updated = await prisma.examSession.update({
       where: { id: req.params.id },
       data: {

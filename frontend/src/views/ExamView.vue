@@ -48,6 +48,9 @@
       <button class="btn btn-primary btn-lg" style="width: 100%; margin-top: 16px;" @click="startExam" :disabled="!selectedPaperId || loading">
         {{ loading ? '加载中...' : '🚀 开始考试' }}
       </button>
+      <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+        ⌨️ 快捷键：<kbd>A</kbd><kbd>B</kbd><kbd>C</kbd><kbd>D</kbd> 选答案 · <kbd>←</kbd><kbd>→</kbd> 切题
+      </div>
 
       <!-- Exam History -->
       <div v-if="examHistory.length" style="margin-top: 24px;">
@@ -68,7 +71,7 @@
     <!-- Exam in progress -->
     <div v-else-if="session.status === 'in_progress'">
       <!-- Timer bar -->
-      <div class="card timer-bar" :class="{ 'timer-warning': timeRemaining < 300 }">
+      <div class="card timer-bar" :class="{ 'timer-warning': timeRemaining < 300, 'timer-critical': timeRemaining < 60 }">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div>
             <strong>{{ session.title }}</strong>
@@ -155,6 +158,7 @@
             <span class="detail-num">{{ idx + 1 }}.</span>
             <span :class="r.isCorrect ? 'text-success' : 'text-danger'">{{ r.isCorrect ? '✅ 正确' : '❌ 错误' }}</span>
             <span class="detail-score">{{ r.score }} 分</span>
+            <button class="btn btn-sm" style="margin-left: 8px;" @click="addToFlashcard(r.questionId)">🃏 闪卡</button>
           </div>
           <div v-if="!r.isCorrect" style="margin-top: 8px; font-size: 13px;">
             <div><strong>你的答案：</strong>{{ r.userAnswer || '未作答' }}</div>
@@ -169,16 +173,18 @@
       <div class="btn-group" style="justify-content: center; margin-top: 24px;">
         <button class="btn btn-primary" @click="reset">🔄 再考一次</button>
         <router-link to="/practice" class="btn">🎯 去练习</router-link>
+        <router-link to="/practice/errors" class="btn">📝 错题本</router-link>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, inject } from 'vue';
 import { renderMarkdown } from '@/utils/markdown';
 import { SUBJECT_LABELS, getSubjectLabel } from '@/utils/constants';
 
+const toast = inject<(type: string, msg: string) => void>('toast')!;
 const papers = ref<any[]>([]);
 const selectedPaperId = ref('');
 const timeLimit = ref(60);
@@ -191,6 +197,7 @@ const timeRemaining = ref(0);
 const result = ref<any>({});
 const examHistory = ref<any[]>([]);
 let timer: any = null;
+let lastWarnSecond = -1;
 
 const currentQ = computed(() => session.value.questions?.[currentIdx.value]);
 
@@ -222,8 +229,13 @@ async function startExam() {
       answers.value = {};
       currentIdx.value = 0;
       timeRemaining.value = json.data.timeLimit * 60;
+      lastWarnSecond = -1;
       timer = setInterval(() => {
         timeRemaining.value--;
+        // Sound alerts at 5min, 1min, 10s
+        if (timeRemaining.value === 300 && lastWarnSecond !== 300) { playBeep(2); lastWarnSecond = 300; }
+        if (timeRemaining.value === 60 && lastWarnSecond !== 60) { playBeep(3); lastWarnSecond = 60; }
+        if (timeRemaining.value === 10 && lastWarnSecond !== 10) { playBeep(5); lastWarnSecond = 10; }
         if (timeRemaining.value <= 0) {
           clearInterval(timer);
           submitExam(true);
@@ -233,6 +245,23 @@ async function startExam() {
   } finally {
     loading.value = false;
   }
+}
+
+function playBeep(count: number) {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    for (let i = 0; i < count; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 800;
+      osc.type = 'sine';
+      gain.gain.value = 0.3;
+      osc.start(ctx.currentTime + i * 0.3);
+      osc.stop(ctx.currentTime + i * 0.3 + 0.15);
+    }
+  } catch {}
 }
 
 async function submitExam(forceTimeout: boolean) {
@@ -257,12 +286,38 @@ async function submitExam(forceTimeout: boolean) {
   }
 }
 
+async function addToFlashcard(questionId: string) {
+  await fetch('/api/flashcards/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ questionId }),
+  });
+  toast('success', '已加入闪卡');
+}
+
 function formatTime(s: number) {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
   if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+// Keyboard shortcuts
+function handleKeydown(e: KeyboardEvent) {
+  if (!session.value || session.value.status !== 'in_progress') return;
+  if ((e.target as HTMLElement)?.tagName === 'TEXTAREA' || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+
+  const key = e.key.toUpperCase();
+  if (key >= 'A' && key <= 'D' && currentQ.value?.options?.length) {
+    const idx = key.charCodeAt(0) - 65;
+    if (idx < currentQ.value.options.length) {
+      answers.value[currentQ.value.id] = key;
+      e.preventDefault();
+    }
+  }
+  if (e.key === 'ArrowLeft') { currentIdx.value = Math.max(0, currentIdx.value - 1); e.preventDefault(); }
+  if (e.key === 'ArrowRight') { currentIdx.value = Math.min(session.value.questions.length - 1, currentIdx.value + 1); e.preventDefault(); }
 }
 
 function reset() {
@@ -272,8 +327,8 @@ function reset() {
   if (timer) clearInterval(timer);
 }
 
-onMounted(() => { loadPapers(); loadHistory(); });
-onUnmounted(() => { if (timer) clearInterval(timer); });
+onMounted(() => { loadPapers(); loadHistory(); window.addEventListener('keydown', handleKeydown); });
+onUnmounted(() => { if (timer) clearInterval(timer); window.removeEventListener('keydown', handleKeydown); });
 </script>
 
 <style scoped>
@@ -289,6 +344,8 @@ onUnmounted(() => { if (timer) clearInterval(timer); });
 
 .timer-bar { padding: 16px 20px; }
 .timer-bar.timer-warning { border-color: var(--danger); background: var(--danger-light); }
+.timer-bar.timer-critical { animation: pulse 1s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
 .timer-display { display: flex; align-items: center; gap: 8px; }
 .timer-icon { font-size: 20px; }
 .timer-text { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -335,7 +392,7 @@ onUnmounted(() => { if (timer) clearInterval(timer); });
 .result-item.danger .result-value { color: var(--danger); }
 .result-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
 
-.result-detail { padding: 14px; border-radius: var(--radius); margin-bottom: 8px; }
+.result-detail { padding: 14px; border-radius: var(--radius); margin-bottom: 8px; text-align: left; }
 .detail-correct { background: var(--success-light); }
 .detail-wrong { background: var(--danger-light); }
 .detail-header { display: flex; align-items: center; gap: 8px; font-weight: 600; }
@@ -350,4 +407,10 @@ onUnmounted(() => { if (timer) clearInterval(timer); });
 .history-item:last-child { border-bottom: none; }
 .history-info { display: flex; align-items: center; gap: 8px; }
 .history-score { font-weight: 600; }
+
+kbd {
+  display: inline-block; padding: 2px 6px; font-size: 11px; font-family: monospace;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  box-shadow: 0 1px 0 var(--border);
+}
 </style>

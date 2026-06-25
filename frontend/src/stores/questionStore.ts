@@ -30,6 +30,7 @@ export const useQuestionStore = defineStore('questions', () => {
       if (f.difficulty) params.set('difficulty', String(f.difficulty));
       if (f.tags?.length) params.set('tags', f.tags.join(','));
       if (f.keyword) params.set('keyword', f.keyword);
+      if ((f as any).sortBy) params.set('sortBy', (f as any).sortBy);
       params.set('page', String(page.value));
       params.set('pageSize', String(pageSize.value));
 

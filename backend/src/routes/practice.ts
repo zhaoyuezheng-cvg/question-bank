@@ -272,12 +272,33 @@ practiceRouter.get('/history', async (req: Request, res: Response) => {
 // POST /api/practice/random-paper - 随机组卷
 practiceRouter.post('/random-paper', async (req: Request, res: Response) => {
   try {
-    const { subject, count = 10, difficulty, types } = req.body;
+    const { subject, count = 10, difficulty, types, errorOnly } = req.body;
+
+    let questionIds: string[] | null = null;
+
+    // If errorOnly, get questions from error book
+    if (errorOnly) {
+      const errorWhere: any = { isResolved: false };
+      if (subject) errorWhere.question = { subject };
+      const errors = await prisma.errorBook.findMany({
+        where: errorWhere,
+        include: { question: true },
+        take: count * 2,
+      });
+      questionIds = errors.map(e => e.questionId);
+      if (questionIds.length === 0) {
+        return res.json({ success: false, error: '没有错题可以练习' });
+      }
+    }
 
     const where: any = {};
-    if (subject) where.subject = subject;
-    if (difficulty) where.difficulty = difficulty;
-    if (types?.length) where.type = { in: types };
+    if (questionIds) {
+      where.id = { in: questionIds };
+    } else {
+      if (subject) where.subject = subject;
+      if (difficulty) where.difficulty = difficulty;
+      if (types?.length) where.type = { in: types };
+    }
 
     const total = await prisma.question.count({ where });
     if (total === 0) return res.json({ success: false, error: '没有符合条件的题目' });

@@ -9,7 +9,7 @@ questionRouter.get('/', async (req: Request, res: Response) => {
   try {
     const {
       subject, category, subCategory, type, difficulty,
-      tags, keyword, page = '1', pageSize = '20'
+      tags, keyword, page = '1', pageSize = '20', sortBy
     } = req.query as Record<string, string | undefined>;
 
     const pageNum = Math.max(1, parseInt(page || '1'));
@@ -37,12 +37,18 @@ questionRouter.get('/', async (req: Request, res: Response) => {
       }));
     }
 
+    // Build orderBy
+    let orderBy: any = { updatedAt: 'desc' };
+    if (sortBy === 'createdAt') orderBy = { createdAt: 'desc' };
+    else if (sortBy === 'difficulty_asc') orderBy = { difficulty: 'asc' };
+    else if (sortBy === 'difficulty_desc') orderBy = { difficulty: 'desc' };
+
     const [items, total] = await Promise.all([
       prisma.question.findMany({
         where,
         skip: (pageNum - 1) * size,
         take: size,
-        orderBy: { updatedAt: 'desc' },
+        orderBy,
       }),
       prisma.question.count({ where }),
     ]);

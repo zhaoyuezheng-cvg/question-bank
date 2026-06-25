@@ -122,9 +122,19 @@ recommendRouter.get('/similar/:id', async (req: Request, res: Response) => {
 });
 
 // GET /api/recommend/enhanced-stats - 增强统计
-recommendRouter.get('/enhanced-stats', async (_req: Request, res: Response) => {
+recommendRouter.get('/enhanced-stats', async (req: Request, res: Response) => {
   try {
+    const { period } = req.query as Record<string, string>;
+    const now = Math.floor(Date.now() / 1000);
+    let since = 0;
+    if (period === 'week') since = now - 7 * 86400;
+    else if (period === 'month') since = now - 30 * 86400;
+
+    const where: any = {};
+    if (since > 0) where.createdAt = { gte: since };
+
     const records = await prisma.practiceRecord.findMany({
+      where,
       orderBy: { createdAt: 'asc' },
       include: { question: true },
     });
@@ -136,7 +146,6 @@ recommendRouter.get('/enhanced-stats', async (_req: Request, res: Response) => {
     // Accuracy by difficulty
     const byDifficulty: Record<number, { total: number; correct: number }> = {};
     // Daily trend (last 30 days)
-    const now = Math.floor(Date.now() / 1000);
     const thirtyDaysAgo = now - 30 * 86400;
     const dailyTrend: Record<string, { total: number; correct: number }> = {};
 

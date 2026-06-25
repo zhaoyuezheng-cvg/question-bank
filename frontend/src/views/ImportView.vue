@@ -13,10 +13,10 @@
         <span class="card-title">📖 导入格式说明</span>
       </div>
       <div class="format-help">
-        <p style="margin-bottom: 12px;">支持以下两种格式，系统自动识别：</p>
+        <p style="margin-bottom: 12px;">支持以下方式导入，系统自动识别：</p>
         <div class="format-grid">
           <div class="format-example">
-            <strong>格式一：带标记格式</strong>
+            <strong>方式一：粘贴文本（带标记）</strong>
             <pre>【题干】补写出下列名句中的空缺部分：
 (1) 风急天高猿啸哀，____________。
 【答案】渚清沙白鸟飞回
@@ -25,12 +25,18 @@
 【来源】2024全国甲卷</pre>
           </div>
           <div class="format-example">
-            <strong>格式二：编号格式</strong>
+            <strong>方式二：粘贴文本（编号格式）</strong>
             <pre>1. 下列词语中加点字的读音完全正确的一项是（  ）
 A. 踹（chuài）水   B. 筵（yàn）席
 【答案】A
 【解析】考查字音辨析</pre>
           </div>
+        </div>
+        <div style="margin-top: 12px;">
+          <strong>方式三：上传文件</strong>
+          <span style="font-size: 13px; color: var(--text-secondary); margin-left: 8px;">
+            支持 .txt / .docx / .pdf 文件，自动提取文本后导入
+          </span>
         </div>
       </div>
     </div>
@@ -57,13 +63,30 @@ A. 踹（chuài）水   B. 筵（yàn）席
         </div>
       </div>
 
+      <!-- File Upload -->
       <div class="form-group">
-        <label class="form-label">粘贴题目文本</label>
+        <label class="form-label">📁 上传文件（可选，支持 .txt / .docx / .pdf）</label>
+        <div class="file-upload-area" @click="fileInput?.click()" @drop.prevent="handleDrop" @dragover.prevent>
+          <input ref="fileInput" type="file" accept=".txt,.docx,.pdf" style="display:none;" @change="handleFileSelect" />
+          <div v-if="!fileName" class="file-upload-hint">
+            <span style="font-size: 32px;">📁</span>
+            <p>点击选择文件 或 拖拽文件到此处</p>
+            <p style="font-size: 12px; color: var(--text-muted);">支持 .txt .docx .pdf</p>
+          </div>
+          <div v-else class="file-info">
+            <span>📄 {{ fileName }}</span>
+            <button class="btn btn-sm" @click.stop="clearFile">清除</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">或直接粘贴题目文本</label>
         <textarea
           class="form-textarea"
           v-model="importText"
           rows="15"
-          placeholder="将包含【题干】【答案】等标记的文本粘贴到这里..."
+          :placeholder="fileName ? '文件内容已加载，也可在此追加文本...' : '将包含【题干】【答案】等标记的文本粘贴到这里...'"
         ></textarea>
       </div>
 
@@ -122,6 +145,98 @@ const defaultCategory = ref('');
 const defaultSubCategory = ref('');
 const importing = ref(false);
 const result = ref<ImportResult | null>(null);
+const fileName = ref('');
+const fileInput = ref<HTMLInputElement>();
+
+async function handleFileSelect(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  await processFile(file);
+}
+
+async function handleDrop(e: DragEvent) {
+  const file = e.dataTransfer?.files?.[0];
+  if (!file) return;
+  await processFile(file);
+}
+
+async function processFile(file: File) {
+  fileName.value = file.name;
+  const ext = file.name.split('.').pop()?.toLowerCase();
+
+  try {
+    if (ext === 'txt') {
+      const text = await file.text();
+      importText.value = text;
+      toast('success', `已加载 ${file.name}`);
+    } else if (ext === 'docx') {
+      // Extract text from docx using simple approach
+      const arrayBuffer = await file.arrayBuffer();
+      const text = await extractDocxText(arrayBuffer);
+      importText.value = text;
+      toast('success', `已从 ${file.name} 提取文本`);
+    } else if (ext === 'pdf') {
+      // For PDF, read as text (basic extraction)
+      const arrayBuffer = await file.arrayBuffer();
+      const text = await extractPdfText(arrayBuffer);
+      importText.value = text;
+      toast('success', `已从 ${file.name} 提取文本`);
+    } else {
+      toast('error', '不支持的文件格式，请使用 .txt / .docx / .pdf');
+      fileName.value = '';
+    }
+  } catch (err: any) {
+    toast('error', '文件解析失败: ' + err.message);
+    fileName.value = '';
+  }
+}
+
+async function extractDocxText(buffer: ArrayBuffer): Promise<string> {
+  try {
+    const uint8 = new Uint8Array(buffer);
+    const raw = new TextDecoder("latin1").decode(uint8);
+    const matches = raw.match(/<w:t[^>]*>([^<]+)<\/w:t>/g);
+    if (!matches || matches.length === 0) throw new Error("no text");
+    const text = matches.map(m => {
+      const c = m.match(/>([^<]+)</);
+      return c ? c[1] : "";
+    }).join("");
+    if (!text.trim()) throw new Error("empty");
+    return text;
+  } catch {
+    throw new Error("docx 解析失败，建议复制文档内容后粘贴到文本框");
+  }
+}
+
+async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
+  // Basic PDF text extraction - look for stream content
+  try {
+    const text = new TextDecoder('latin1').decode(buffer);
+    // Very basic: extract text between BT and ET markers
+    const matches = text.match(/BT[\s\S]*?ET/g);
+    if (!matches) throw new Error('无法提取');
+
+    const lines: string[] = [];
+    for (const m of matches) {
+      const tj = m.match(/\(([^)]*)\)\s*Tj/g);
+      if (tj) {
+        for (const t of tj) {
+          const content = t.match(/\(([^)]*)\)/);
+          if (content?.[1]) lines.push(content[1]);
+        }
+      }
+    }
+    if (lines.length === 0) throw new Error('无法提取文本');
+    return lines.join('\n');
+  } catch {
+    throw new Error('PDF 解析较复杂，建议复制 PDF 中的文本后粘贴导入');
+  }
+}
+
+function clearFile() {
+  fileName.value = '';
+  if (fileInput.value) fileInput.value.value = '';
+}
 
 async function handleImport() {
   importing.value = true;
@@ -157,6 +272,7 @@ async function handleImport() {
 function clearAll() {
   importText.value = '';
   result.value = null;
+  fileName.value = '';
 }
 </script>
 
@@ -178,10 +294,6 @@ function clearAll() {
   }
 }
 
-.format-example {
-  margin: 0;
-}
-
 .format-example strong {
   display: block;
   margin-bottom: 6px;
@@ -197,6 +309,19 @@ function clearAll() {
   overflow-x: auto;
   line-height: 1.6;
 }
+
+.file-upload-area {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-bottom: 12px;
+}
+.file-upload-area:hover { border-color: var(--primary); background: var(--primary-50); }
+.file-upload-hint p { margin: 8px 0 0; color: var(--text-secondary); }
+.file-info { display: flex; align-items: center; justify-content: center; gap: 12px; font-weight: 500; }
 
 .result-grid {
   display: grid;

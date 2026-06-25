@@ -30,9 +30,18 @@
             </select>
           </div>
         </div>
+        <div class="form-group" style="margin-top: 8px;">
+          <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" v-model="errorOnly" />
+            <span>🎯 只练错题 / 未掌握题目</span>
+          </label>
+        </div>
         <button class="btn btn-primary btn-lg" @click="startPractice" :disabled="loading" style="width: 100%; margin-top: 8px;">
           {{ loading ? '加载中...' : '🚀 开始练习' }}
         </button>
+        <div class="shortcut-hint" style="margin-top: 12px; font-size: 12px; color: var(--text-muted);">
+          ⌨️ 快捷键：<kbd>A</kbd><kbd>B</kbd><kbd>C</kbd><kbd>D</kbd> 选答案 · <kbd>Enter</kbd> 提交/下一题
+        </div>
       </div>
 
       <!-- History Chart -->
@@ -62,7 +71,7 @@
       </div>
 
       <!-- Question -->
-      <div class="card" v-if="currentQ">
+      <div class="card" v-if="currentQ && !showReview">
         <div class="q-meta">
           <span class="tag" :style="{ background: SUBJECT_COLORS[currentQ.subject as Subject] + '18', color: SUBJECT_COLORS[currentQ.subject as Subject] }">
             {{ getSubjectLabel(currentQ.subject as Subject) }}
@@ -96,16 +105,16 @@
         <!-- Text input for non-choice -->
         <div v-else class="form-group" style="margin-top: 16px;">
           <label class="form-label">你的答案：</label>
-          <textarea class="form-textarea" v-model="userAnswer" rows="3" placeholder="输入你的答案..." :disabled="showResult"></textarea>
+          <textarea class="form-textarea" v-model="userAnswer" rows="3" placeholder="输入你的答案... (Enter 提交)" :disabled="showResult"></textarea>
         </div>
 
         <!-- Action buttons -->
         <div class="btn-group" style="margin-top: 20px;">
           <button v-if="!showResult" class="btn btn-primary" @click="submitAnswer" :disabled="!userAnswer">
-            ✅ 提交答案
+            ✅ 提交答案 <kbd style="margin-left: 4px; font-size: 11px;">Enter</kbd>
           </button>
           <button v-else class="btn btn-primary" @click="nextQuestion">
-            {{ currentIndex < questions.length - 1 ? '👉 下一题' : '📊 查看结果' }}
+            {{ currentIndex < questions.length - 1 ? '👉 下一题' : '📊 查看结果' }} <kbd style="margin-left: 4px; font-size: 11px;">Enter</kbd>
           </button>
           <button v-if="!showResult" class="btn" @click="skipQuestion">⏭️ 跳过</button>
         </div>
@@ -123,16 +132,17 @@
             <strong>解析：</strong>
             <div class="markdown-body" v-html="renderMarkdown(currentQ.analysis)"></div>
           </div>
-          <div style="margin-top: 12px;">
+          <div style="margin-top: 12px; display: flex; gap: 8px;">
             <button class="btn btn-sm" :class="{ 'btn-primary': isFav(currentQ.id) }" @click="toggleFavorite(currentQ.id)">
               {{ isFav(currentQ.id) ? '❤️ 已收藏' : '🤍 收藏' }}
             </button>
+            <button class="btn btn-sm" @click="addToFlashcard(currentQ.id)">🃏 加入闪卡</button>
           </div>
         </div>
       </div>
 
       <!-- Summary -->
-      <div v-if="finished" class="card summary-card">
+      <div v-if="finished && !showReview" class="card summary-card">
         <h2 style="margin-bottom: 8px; font-size: 24px;">📊 练习完成！</h2>
         <p style="color: var(--text-secondary); margin-bottom: 24px;">来看看你的成绩吧</p>
         <div class="summary-grid">
@@ -154,8 +164,42 @@
           </div>
         </div>
         <div class="btn-group" style="justify-content: center; margin-top: 24px;">
-          <button class="btn btn-primary" @click="reset">🔄 再来一轮</button>
+          <button class="btn btn-primary" @click="showReview = true">📋 回顾答题</button>
+          <button class="btn" @click="reset">🔄 再来一轮</button>
           <router-link to="/practice/errors" class="btn">📝 查看错题本</router-link>
+        </div>
+      </div>
+
+      <!-- Review Mode -->
+      <div v-if="finished && showReview">
+        <div class="card" style="margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="card-title">📋 答题回顾</span>
+            <button class="btn btn-sm" @click="showReview = false">返回汇总</button>
+          </div>
+        </div>
+        <div v-for="(q, idx) in questions" :key="q.id" class="card review-item" :class="reviewResults[idx]?.isCorrect ? 'review-correct' : 'review-wrong'">
+          <div class="review-header">
+            <span class="review-num">{{ idx + 1 }}.</span>
+            <span :class="reviewResults[idx]?.isCorrect ? 'text-success' : 'text-danger'">{{ reviewResults[idx]?.isCorrect ? '✅ 正确' : '❌ 错误' }}</span>
+            <button class="btn btn-sm" style="margin-left: auto;" :class="{ 'btn-primary': isFav(q.id) }" @click="toggleFavorite(q.id)">
+              {{ isFav(q.id) ? '❤️' : '🤍' }}
+            </button>
+          </div>
+          <div class="markdown-body" style="margin-top: 8px;" v-html="renderMarkdown(q.content)"></div>
+          <div v-if="q.options?.length" class="review-options" style="margin-top: 8px;">
+            <span v-for="(opt, oi) in q.options" :key="oi" class="review-opt" :class="{
+              'opt-correct': q.answer?.trim().toUpperCase() === String.fromCharCode(65 + oi),
+              'opt-wrong': reviewResults[idx]?.userAnswer === String.fromCharCode(65 + oi) && !reviewResults[idx]?.isCorrect
+            }">{{ String.fromCharCode(65 + oi) }}. {{ opt }}</span>
+          </div>
+          <div v-if="!reviewResults[idx]?.isCorrect" style="margin-top: 8px; font-size: 13px;">
+            <div><strong>你的答案：</strong>{{ reviewResults[idx]?.userAnswer || '未作答' }}</div>
+            <div style="color: var(--success);"><strong>正确答案：</strong>{{ q.answer }}</div>
+          </div>
+          <div v-if="q.analysis" style="margin-top: 8px; font-size: 13px; color: var(--text-secondary);">
+            <strong>解析：</strong>{{ q.analysis }}
+          </div>
         </div>
       </div>
     </div>
@@ -163,7 +207,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, inject } from 'vue';
 import * as echarts from 'echarts';
 import { renderMarkdown } from '@/utils/markdown';
 import { SUBJECT_LABELS, SUBJECT_COLORS, DIFFICULTY_COLORS, getSubjectLabel, getDifficultyLabel } from '@/utils/constants';
@@ -183,6 +227,10 @@ const wrongCount = ref(0);
 const finished = ref(false);
 const elapsed = ref(0);
 const favoriteIds = ref<Set<string>>(new Set());
+const showReview = ref(false);
+const reviewResults = ref<Record<number, { isCorrect: boolean; userAnswer: string }>>({});
+const errorOnly = ref(false);
+const toast = inject<(type: string, msg: string) => void>('toast')!;
 let timer: any = null;
 
 const config = ref({ subject: '', count: 10 });
@@ -202,13 +250,15 @@ function formatTime(s: number) {
 async function startPractice() {
   loading.value = true;
   try {
+    const body: any = { subject: config.value.subject || undefined, count: config.value.count };
+    if (errorOnly.value) body.errorOnly = true;
     const res = await fetch('/api/practice/random-paper', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subject: config.value.subject || undefined, count: config.value.count }),
+      body: JSON.stringify(body),
     });
     const json = await res.json();
-    if (!json.success) { alert(json.error); return; }
+    if (!json.success) { toast('error', json.error || '没有符合条件的题目'); return; }
 
     const paperRes = await fetch(`/api/papers/${json.data.paperId}`);
     const paperJson = await paperRes.json();
@@ -219,6 +269,8 @@ async function startPractice() {
       correctCount.value = 0;
       wrongCount.value = 0;
       finished.value = false;
+      showReview.value = false;
+      reviewResults.value = {};
       userAnswer.value = '';
       showResult.value = false;
       elapsed.value = 0;
@@ -250,6 +302,7 @@ async function submitAnswer() {
     isCorrect.value = json.data.isCorrect;
     if (isCorrect.value) correctCount.value++;
     else wrongCount.value++;
+    reviewResults.value[currentIndex.value] = { isCorrect: isCorrect.value, userAnswer: userAnswer.value };
     showResult.value = true;
   }
 }
@@ -267,6 +320,7 @@ function nextQuestion() {
 }
 
 function skipQuestion() {
+  reviewResults.value[currentIndex.value] = { isCorrect: false, userAnswer: '' };
   wrongCount.value++;
   nextQuestion();
 }
@@ -289,13 +343,51 @@ async function toggleFavorite(qId: string) {
   }
 }
 
+async function addToFlashcard(questionId: string) {
+  await fetch('/api/flashcards/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ questionId }),
+  });
+  toast('success', '已加入闪卡');
+}
+
+// Keyboard shortcuts
+function handleKeydown(e: KeyboardEvent) {
+  if (!started.value || finished.value) return;
+  if ((e.target as HTMLElement)?.tagName === 'TEXTAREA' || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+
+  if (!showResult.value) {
+    if (currentQ.value?.options?.length) {
+      const key = e.key.toUpperCase();
+      if (key >= 'A' && key <= 'D') {
+        const idx = key.charCodeAt(0) - 65;
+        if (idx < currentQ.value.options.length) {
+          userAnswer.value = key;
+          e.preventDefault();
+        }
+      }
+    }
+    if (e.key === 'Enter' && userAnswer.value) {
+      submitAnswer();
+      e.preventDefault();
+    }
+  } else {
+    if (e.key === 'Enter' || e.key === ' ') {
+      nextQuestion();
+      e.preventDefault();
+    }
+  }
+}
+
 function reset() {
   started.value = false;
   finished.value = false;
+  showReview.value = false;
+  reviewResults.value = {};
   if (timer) clearInterval(timer);
 }
 
-// Load practice history
 async function loadHistory() {
   try {
     const res = await fetch('/api/practice/history?days=14');
@@ -343,8 +435,8 @@ function initHistoryChart() {
   window.addEventListener('resize', () => chart.resize());
 }
 
-onMounted(loadHistory);
-onUnmounted(() => { if (timer) clearInterval(timer); });
+onMounted(() => { loadHistory(); window.addEventListener('keydown', handleKeydown); });
+onUnmounted(() => { if (timer) clearInterval(timer); window.removeEventListener('keydown', handleKeydown); });
 </script>
 
 <style scoped>
@@ -391,4 +483,21 @@ onUnmounted(() => { if (timer) clearInterval(timer); });
 
 .practice-home { max-width: 800px; }
 .history-chart { width: 100%; height: 220px; }
+
+/* Review Mode */
+.review-item { margin-bottom: 12px; }
+.review-correct { border-left: 4px solid var(--success); }
+.review-wrong { border-left: 4px solid var(--danger); }
+.review-header { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.review-num { font-size: 16px; }
+.review-options { display: flex; flex-direction: column; gap: 4px; }
+.review-opt { padding: 6px 12px; border-radius: var(--radius); font-size: 13px; }
+.review-opt.opt-correct { background: var(--success-light); color: var(--success); font-weight: 600; }
+.review-opt.opt-wrong { background: var(--danger-light); color: var(--danger); text-decoration: line-through; }
+
+kbd {
+  display: inline-block; padding: 2px 6px; font-size: 11px; font-family: monospace;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  box-shadow: 0 1px 0 var(--border);
+}
 </style>

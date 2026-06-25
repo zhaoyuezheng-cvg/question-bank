@@ -121,6 +121,7 @@ export interface QuestionFilter {
   keyword?: string;
   page?: number;
   pageSize?: number;
+  sortBy?: string;
 }
 
 // ---- 批量导入 ----
