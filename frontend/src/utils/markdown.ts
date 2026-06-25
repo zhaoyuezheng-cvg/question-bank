@@ -12,8 +12,7 @@ const md = new MarkdownIt({
 // Display math: $$ ... $$
 // Inline math: $ ... $
 function latexPlugin(md: any) {
-  // Inline math
-  md.inline.rules.math = function (state: any, silent: boolean) {
+  function inlineMath(state: any, silent: boolean) {
     if (state.src.charCodeAt(state.pos) !== 0x24 /* $ */) return false;
     if (state.src.charCodeAt(state.pos + 1) === 0x24) return false; // skip $$
 
@@ -34,13 +33,10 @@ function latexPlugin(md: any) {
     }
     state.pos = end + 1;
     return true;
-  };
+  }
 
-  // Display math
-  md.block.rules.math = function (state: any, startLine: number, endLine: number, silent: boolean) {
+  function displayMath(state: any, startLine: number, endLine: number, silent: boolean) {
     const startPos = state.bMarks[startLine] + state.tShift[startLine];
-    const maxPos = state.eMarks[startLine];
-
     if (state.src.charCodeAt(startPos) !== 0x24 || state.src.charCodeAt(startPos + 1) !== 0x24) return false;
 
     let nextLine = startLine + 1;
@@ -72,7 +68,12 @@ function latexPlugin(md: any) {
     token.map = [startLine, nextLine + 1];
     state.line = nextLine + 1;
     return true;
-  };
+  }
+
+  md.inline.ruler.before('emphasis', 'math_inline', inlineMath);
+  md.block.ruler.before('paragraph', 'math_block', displayMath, {
+    alt: ['paragraph', 'reference', 'blockquote', 'list'],
+  });
 
   // Renderers
   md.renderer.rules.math_inline = function (tokens: any, idx: number) {
@@ -94,7 +95,7 @@ function latexPlugin(md: any) {
 
 // Underline syntax: ==text==
 function underlinePlugin(md: any) {
-  md.inline.rules.underline = function (state: any, silent: boolean) {
+  function underline(state: any, silent: boolean) {
     if (state.src.charCodeAt(state.pos) !== 0x3D /* = */) return false;
     if (state.src.charCodeAt(state.pos + 1) !== 0x3D) return false;
 
@@ -112,8 +113,9 @@ function underlinePlugin(md: any) {
     }
     state.pos = end + 2;
     return true;
-  };
+  }
 
+  md.inline.ruler.before('emphasis', 'underline', underline);
   md.renderer.rules.underline = function (tokens: any, idx: number) {
     return `<u>${tokens[idx].content}</u>`;
   };
@@ -121,7 +123,7 @@ function underlinePlugin(md: any) {
 
 // Blank/fill-in: ___
 function blankPlugin(md: any) {
-  md.inline.rules.blank = function (state: any, silent: boolean) {
+  function blank(state: any, silent: boolean) {
     const pos = state.pos;
     if (state.src.charCodeAt(pos) !== 0x5F /* _ */) return false;
     if (state.src.charCodeAt(pos + 1) !== 0x5F || state.src.charCodeAt(pos + 2) !== 0x5F) return false;
@@ -131,8 +133,9 @@ function blankPlugin(md: any) {
     }
     state.pos = pos + 3;
     return true;
-  };
+  }
 
+  md.inline.ruler.before('emphasis', 'blank', blank);
   md.renderer.rules.blank = function () {
     return '<span class="fill-blank">________</span>';
   };
