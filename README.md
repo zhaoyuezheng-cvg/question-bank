@@ -14,22 +14,118 @@
 
 ## 快速开始
 
+### 环境要求
+
+| 依赖 | 版本要求 | 说明 |
+|------|----------|------|
+| Node.js | >= 18（推荐 20+） | 运行时 |
+| npm | >= 9 | 包管理（项目使用 npm workspaces） |
+| Git | 任意 | 克隆仓库 |
+
+### 一键部署
+
 ```bash
-# 1. 安装依赖
+# 1. 克隆仓库
+git clone https://github.com/zhaoyuezheng-cvg/question-bank.git
+cd question-bank
+
+# 2. 安装所有依赖（根目录执行，自动安装 shared/backend/frontend）
 npm install
 
-# 2. 初始化数据库 + 填充测试题（30道，覆盖9个学科）
+# 3. 初始化数据库
+#    - 自动创建 SQLite 数据库文件
+#    - 执行所有迁移（建表）
 cd backend
-npx prisma migrate dev
-npx tsx src/seed.ts
+npx prisma migrate dev --name init
 cd ..
 
-# 3. 启动
+# 4. 填充示例数据（30道题，覆盖9个学科，可选）
+npm run db:seed
+
+# 5. 启动开发服务器
 npm run dev
 ```
 
-- 前端：http://localhost:5173
-- 后端：http://localhost:3000
+启动成功后访问：
+- **前端页面**：http://localhost:5173
+- **后端 API**：http://localhost:3000
+- **健康检查**：http://localhost:3000/api/health
+
+### 常用命令
+
+```bash
+npm run dev          # 同时启动前端+后端（热更新）
+npm run dev:frontend # 仅启动前端
+npm run dev:backend  # 仅启动后端
+npm run build        # 构建生产版本
+npm run db:migrate   # 执行数据库迁移
+npm run db:seed      # 填充示例数据
+```
+
+### 生产部署
+
+```bash
+# 1. 构建
+npm run build
+
+# 2. 前端静态文件 → frontend/dist/
+#    用 nginx 托管，配置反向代理 /api → localhost:3000
+
+# 3. 后端 → backend/dist/
+#    启动：cd backend && node dist/index.js
+#    或用 PM2：pm2 start backend/dist/index.js --name question-bank
+```
+
+**Nginx 参考配置：**
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        root /path/to/question-bank/frontend/dist;
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+### 数据备份
+
+数据库是单个 SQLite 文件：`backend/prisma/question-bank.db`
+
+```bash
+# 备份
+cp backend/prisma/question-bank.db ~/backup/question-bank-$(date +%Y%m%d).db
+
+# 恢复
+cp ~/backup/question-bank-20260625.db backend/prisma/question-bank.db
+```
+
+也可以通过 Web 界面备份：设置 → 数据备份 → 一键导出/导入 JSON。
+
+### Docker 部署（可选）
+
+```dockerfile
+FROM node:20-slim
+WORKDIR /app
+COPY . .
+RUN npm install && npm run build
+WORKDIR /app/backend
+RUN npx prisma migrate deploy
+EXPOSE 3000
+CMD ["node", "dist/index.js"]
+```
+
+```bash
+docker build -t question-bank .
+docker run -d -p 3000:3000 -v qb-data:/app/backend/prisma question-bank
+```
 
 ## 功能全景
 
