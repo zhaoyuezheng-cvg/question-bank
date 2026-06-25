@@ -75,10 +75,22 @@
       <div v-if="!selectedQuestions.length" class="empty-state" style="padding: 32px;">
         <div class="empty-state-icon">📌</div>
         <p>尚未选择题目，点击「添加题目」从题库中选取</p>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">💡 提示：添加后可拖拽调整顺序</p>
       </div>
 
       <div v-else class="selected-questions">
-        <div v-for="(q, idx) in selectedQuestions" :key="q.id" class="sq-item">
+        <div
+          v-for="(q, idx) in selectedQuestions"
+          :key="q.id"
+          class="sq-item"
+          :class="{ 'sq-dragging': dragIndex === idx, 'sq-dragover': dragOverIndex === idx }"
+          draggable="true"
+          @dragstart="onDragStart(idx, $event)"
+          @dragover.prevent="onDragOver(idx)"
+          @dragend="onDragEnd"
+          @drop.prevent="onDrop(idx)"
+        >
+          <div class="sq-drag-handle">⠿</div>
           <div class="sq-num">{{ idx + 1 }}</div>
           <div class="sq-content">
             <div class="markdown-body" v-html="renderMarkdown(q.content.slice(0, 200))"></div>
@@ -151,6 +163,10 @@ const showPicker = ref(false);
 const selectedQuestions = ref<Question[]>([]);
 const pickerQuestions = ref<Question[]>([]);
 
+// Drag & Drop state
+const dragIndex = ref<number | null>(null);
+const dragOverIndex = ref<number | null>(null);
+
 const form = ref({
   title: '',
   description: '',
@@ -164,6 +180,31 @@ const form = ref({
 });
 
 const pickerFilter = ref({ subject: '', keyword: '' });
+
+// Drag & Drop handlers
+function onDragStart(idx: number, e: DragEvent) {
+  dragIndex.value = idx;
+  e.dataTransfer!.effectAllowed = 'move';
+  e.dataTransfer!.setData('text/plain', String(idx));
+}
+
+function onDragOver(idx: number) {
+  dragOverIndex.value = idx;
+}
+
+function onDrop(idx: number) {
+  if (dragIndex.value === null || dragIndex.value === idx) return;
+  const arr = selectedQuestions.value;
+  const [item] = arr.splice(dragIndex.value, 1);
+  arr.splice(idx, 0, item);
+  dragIndex.value = null;
+  dragOverIndex.value = null;
+}
+
+function onDragEnd() {
+  dragIndex.value = null;
+  dragOverIndex.value = null;
+}
 
 async function loadPickerQuestions() {
   const params = new URLSearchParams();
@@ -280,11 +321,36 @@ onMounted(async () => {
   border-radius: var(--radius);
   align-items: flex-start;
   transition: all var(--transition-fast);
+  cursor: grab;
+  user-select: none;
+}
+
+.sq-item:active {
+  cursor: grabbing;
 }
 
 .sq-item:hover {
   border-color: var(--primary-light);
   background: var(--primary-50);
+}
+
+.sq-dragging {
+  opacity: 0.4;
+  transform: scale(0.98);
+}
+
+.sq-dragover {
+  border-color: var(--primary);
+  border-style: dashed;
+  background: var(--primary-50);
+}
+
+.sq-drag-handle {
+  font-size: 18px;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 4px 2px;
+  line-height: 1;
 }
 
 .sq-num {

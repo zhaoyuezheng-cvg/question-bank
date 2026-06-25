@@ -234,6 +234,41 @@ practiceRouter.get('/stats', async (_req: Request, res: Response) => {
   }
 });
 
+// GET /api/practice/history - 答题历史（按天汇总）
+practiceRouter.get('/history', async (req: Request, res: Response) => {
+  try {
+    const { days = '30' } = req.query as Record<string, string>;
+    const daysNum = Math.min(365, Math.max(1, parseInt(days)));
+    const now = Math.floor(Date.now() / 1000);
+    const since = now - daysNum * 86400;
+
+    const records = await prisma.practiceRecord.findMany({
+      where: { createdAt: { gte: since } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Group by day
+    const byDay: Record<string, { total: number; correct: number }> = {};
+    for (const r of records) {
+      const day = new Date(r.createdAt * 1000).toISOString().slice(0, 10);
+      if (!byDay[day]) byDay[day] = { total: 0, correct: 0 };
+      byDay[day].total++;
+      if (r.isCorrect) byDay[day].correct++;
+    }
+
+    const history = Object.entries(byDay).map(([date, d]) => ({
+      date,
+      total: d.total,
+      correct: d.correct,
+      accuracy: Math.round((d.correct / d.total) * 100),
+    }));
+
+    res.json({ success: true, data: history });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/practice/random-paper - 随机组卷
 practiceRouter.post('/random-paper', async (req: Request, res: Response) => {
   try {

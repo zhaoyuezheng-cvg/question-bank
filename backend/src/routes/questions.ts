@@ -198,4 +198,24 @@ questionRouter.post('/batch-delete', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/questions/batch-update
+questionRouter.post('/batch-update', async (req: Request, res: Response) => {
+  try {
+    const { ids, updates } = req.body;
+    if (!Array.isArray(ids)) return res.status(400).json({ success: false, error: 'ids 必须是数组' });
+    if (!updates || typeof updates !== 'object') return res.status(400).json({ success: false, error: '缺少 updates' });
+
+    const allowed = ['subject', 'category', 'subCategory', 'type', 'difficulty', 'source'];
+    const data: any = { updatedAt: Math.floor(Date.now() / 1000) };
+    for (const f of allowed) {
+      if (updates[f] !== undefined && updates[f] !== '' && updates[f] !== 0) data[f] = updates[f];
+    }
+
+    const result = await prisma.question.updateMany({ where: { id: { in: ids } }, data });
+    res.json({ success: true, data: { updated: result.count } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 

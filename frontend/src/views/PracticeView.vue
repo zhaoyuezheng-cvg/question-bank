@@ -8,30 +8,40 @@
     </div>
 
     <!-- Config -->
-    <div v-if="!started" class="card" style="max-width: 560px;">
-      <div class="card-header">
-        <span class="card-title">⚙️ 练习设置</span>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">学科</label>
-          <select class="form-select" v-model="config.subject">
-            <option value="">全部学科</option>
-            <option v-for="(label, key) in SUBJECT_LABELS" :key="key" :value="key">{{ label }}</option>
-          </select>
+    <div v-if="!started" class="practice-home">
+      <div class="card" style="max-width: 560px;">
+        <div class="card-header">
+          <span class="card-title">⚙️ 练习设置</span>
         </div>
-        <div class="form-group">
-          <label class="form-label">题数</label>
-          <select class="form-select" v-model.number="config.count">
-            <option :value="5">5 题</option>
-            <option :value="10">10 题</option>
-            <option :value="20">20 题</option>
-          </select>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">学科</label>
+            <select class="form-select" v-model="config.subject">
+              <option value="">全部学科</option>
+              <option v-for="(label, key) in SUBJECT_LABELS" :key="key" :value="key">{{ label }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">题数</label>
+            <select class="form-select" v-model.number="config.count">
+              <option :value="5">5 题</option>
+              <option :value="10">10 题</option>
+              <option :value="20">20 题</option>
+            </select>
+          </div>
         </div>
+        <button class="btn btn-primary btn-lg" @click="startPractice" :disabled="loading" style="width: 100%; margin-top: 8px;">
+          {{ loading ? '加载中...' : '🚀 开始练习' }}
+        </button>
       </div>
-      <button class="btn btn-primary btn-lg" @click="startPractice" :disabled="loading" style="width: 100%; margin-top: 8px;">
-        {{ loading ? '加载中...' : '🚀 开始练习' }}
-      </button>
+
+      <!-- History Chart -->
+      <div v-if="history.length" class="card" style="margin-top: 16px;">
+        <div class="card-header">
+          <span class="card-title">📈 答题趋势（近 {{ history.length }} 天）</span>
+        </div>
+        <div ref="historyChartRef" class="history-chart"></div>
+      </div>
     </div>
 
     <!-- Practice -->
@@ -153,12 +163,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import * as echarts from 'echarts';
 import { renderMarkdown } from '@/utils/markdown';
 import { SUBJECT_LABELS, SUBJECT_COLORS, DIFFICULTY_COLORS, getSubjectLabel, getDifficultyLabel } from '@/utils/constants';
 import type { Subject, Difficulty } from 'shared/src/index';
 
 const started = ref(false);
+const history = ref<{ date: string; total: number; correct: number; accuracy: number }[]>([]);
+const historyChartRef = ref<HTMLElement>();
 const loading = ref(false);
 const questions = ref<any[]>([]);
 const currentIndex = ref(0);
@@ -282,6 +295,55 @@ function reset() {
   if (timer) clearInterval(timer);
 }
 
+// Load practice history
+async function loadHistory() {
+  try {
+    const res = await fetch('/api/practice/history?days=14');
+    const json = await res.json();
+    if (json.success) {
+      history.value = json.data;
+      await nextTick();
+      initHistoryChart();
+    }
+  } catch {}
+}
+
+function initHistoryChart() {
+  if (!historyChartRef.value || !history.value.length) return;
+  const chart = echarts.init(historyChartRef.value);
+  chart.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['答题数', '正确率'], bottom: 0 },
+    xAxis: { type: 'category', data: history.value.map(h => h.date.slice(5)), axisLabel: { fontSize: 11 } },
+    yAxis: [
+      { type: 'value', name: '题数', minInterval: 1 },
+      { type: 'value', name: '正确率%', max: 100, axisLabel: { formatter: '{value}%' } },
+    ],
+    series: [
+      {
+        name: '答题数',
+        type: 'bar',
+        data: history.value.map(h => h.total),
+        itemStyle: { color: '#6366f1', borderRadius: [4, 4, 0, 0] },
+        barWidth: '40%',
+      },
+      {
+        name: '正确率',
+        type: 'line',
+        yAxisIndex: 1,
+        data: history.value.map(h => h.accuracy),
+        smooth: true,
+        lineStyle: { color: '#10b981', width: 2 },
+        itemStyle: { color: '#10b981' },
+        areaStyle: { color: 'rgba(16,185,129,0.1)' },
+      },
+    ],
+    grid: { left: 50, right: 50, top: 20, bottom: 40 },
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+onMounted(loadHistory);
 onUnmounted(() => { if (timer) clearInterval(timer); });
 </script>
 
@@ -326,4 +388,7 @@ onUnmounted(() => { if (timer) clearInterval(timer); });
 .summary-item.success .summary-value { color: var(--success); }
 .summary-item.danger .summary-value { color: var(--danger); }
 .summary-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; font-weight: 500; }
+
+.practice-home { max-width: 800px; }
+.history-chart { width: 100%; height: 220px; }
 </style>

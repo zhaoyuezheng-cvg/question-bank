@@ -6,6 +6,11 @@
         题目管理
       </h1>
       <div class="btn-group">
+        <button class="btn" @click="handleExport('csv')">📥 CSV</button>
+        <button class="btn" @click="handleExport('word')">📥 Word</button>
+        <button v-if="selectedIds.length" class="btn" @click="showBatchModal = true">
+          ⚡ 批量操作 ({{ selectedIds.length }})
+        </button>
         <button v-if="selectedIds.length" class="btn btn-danger" @click="handleBatchDelete">
           🗑️ 删除选中 ({{ selectedIds.length }})
         </button>
@@ -38,7 +43,7 @@
       </div>
       <div class="form-group" style="flex: 1; min-width: 200px;">
         <label class="form-label">搜索</label>
-        <input class="form-input" v-model="filters.keyword" placeholder="搜索题干/答案..." @keyup.enter="applyFilter" />
+        <input class="form-input" v-model="filters.keyword" placeholder="搜索题干/答案... (按 / 聚焦)" @keyup.enter="applyFilter" />
       </div>
       <div class="form-group">
         <label class="form-label">&nbsp;</label>
@@ -63,7 +68,7 @@
 
       <div v-else-if="!store.questions.length" class="empty-state">
         <div class="empty-state-icon">📝</div>
-        <p>暂无题目，点击右上角「新建题目」开始</p>
+        <p>暂无题目，按 <kbd>N</kbd> 新建题目</p>
         <router-link to="/questions/new" class="btn btn-primary" style="margin-top: 16px;">➕ 新建题目</router-link>
       </div>
 
@@ -87,7 +92,9 @@
               <input type="checkbox" :value="q.id" v-model="selectedIds" />
             </td>
             <td>
-              <div class="q-preview" v-html="renderMarkdown(q.content.slice(0, 150))"></div>
+              <QuestionPopover :question="q">
+                <div class="q-preview" v-html="renderMarkdown(q.content.slice(0, 150))"></div>
+              </QuestionPopover>
             </td>
             <td>
               <span class="tag" :style="{ background: SUBJECT_COLORS[q.subject] + '18', color: SUBJECT_COLORS[q.subject] }">
@@ -107,8 +114,8 @@
             </td>
             <td>
               <div class="btn-group">
-                <router-link :to="`/questions/${q.id}/edit`" class="btn btn-sm btn-ghost">✏️ 编辑</router-link>
-                <button class="btn btn-sm btn-ghost" style="color: var(--danger);" @click="handleDelete(q.id)">🗑️</button>
+                <router-link :to="`/questions/${q.id}/edit`" class="btn btn-sm btn-ghost">✏️</router-link>
+                <button class="btn btn-sm btn-ghost" style="color: var(--danger);" @click="handleDelete(q)">🗑️</button>
               </div>
             </td>
           </tr>
@@ -125,6 +132,35 @@
       </template>
       <button :disabled="store.page >= store.totalPages" @click="goPage(store.page + 1)">›</button>
     </div>
+
+    <!-- Batch Update Modal -->
+    <div v-if="showBatchModal" class="modal-overlay" @click.self="showBatchModal = false">
+      <div class="modal">
+        <div class="modal-title">⚡ 批量修改 ({{ selectedIds.length }} 道题)</div>
+        <div class="form-group">
+          <label class="form-label">修改学科</label>
+          <select class="form-select" v-model="batchForm.subject">
+            <option value="">不修改</option>
+            <option v-for="(label, key) in SUBJECT_LABELS" :key="key" :value="key">{{ label }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">修改难度</label>
+          <select class="form-select" v-model="batchForm.difficulty">
+            <option value="0">不修改</option>
+            <option v-for="n in 5" :key="n" :value="n">{{ DIFFICULTY_LABELS[n as Difficulty] }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">修改分类</label>
+          <input class="form-input" v-model="batchForm.category" placeholder="留空不修改" />
+        </div>
+        <div class="btn-group" style="margin-top: 20px; justify-content: flex-end;">
+          <button class="btn" @click="showBatchModal = false">取消</button>
+          <button class="btn btn-primary" @click="handleBatchUpdate">应用修改</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -132,6 +168,8 @@
 import { ref, computed, onMounted, inject } from 'vue';
 import { useQuestionStore } from '@/stores/questionStore';
 import { renderMarkdown } from '@/utils/markdown';
+import { exportQuestionsCSV, exportQuestionsWord } from '@/utils/export';
+import QuestionPopover from '@/components/QuestionPopover.vue';
 import {
   SUBJECT_LABELS, SUBJECT_COLORS, QUESTION_TYPE_LABELS,
   DIFFICULTY_LABELS, DIFFICULTY_COLORS,
@@ -141,7 +179,8 @@ import type { Difficulty, Subject, QuestionType } from 'shared/src/index';
 
 const store = useQuestionStore();
 const selectedIds = ref<string[]>([]);
-const toast = inject<(type: string, msg: string) => void>('toast')!;
+const showBatchModal = ref(false);
+const toast = inject<(type: string, msg: string, duration?: number, action?: any) => void>('toast')!;
 const confirmFn = inject<(opts: any) => Promise<boolean>>('confirm')!;
 
 const filters = ref({
@@ -149,6 +188,12 @@ const filters = ref({
   type: '',
   difficulty: '',
   keyword: '',
+});
+
+const batchForm = ref({
+  subject: '',
+  difficulty: 0,
+  category: '',
 });
 
 const allSelected = computed(() =>
@@ -198,19 +243,85 @@ function toggleAll() {
   }
 }
 
-async function handleDelete(id: string) {
-  const ok = await confirmFn({ message: '确定删除此题目？删除后不可恢复。', icon: '🗑️' });
+// Undo delete
+async function handleDelete(q: any) {
+  const ok = await confirmFn({ message: '确定删除此题目？', icon: '🗑️' });
   if (!ok) return;
-  await store.deleteQuestion(id);
-  toast('success', '删除成功');
+
+  // Store for undo
+  const deleted = { ...q };
+  await store.deleteQuestion(q.id);
+  toast('success', '已删除', 5000, {
+    label: '↩ 撤销',
+    fn: async () => {
+      await fetch('/api/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(deleted),
+      });
+      store.fetchQuestions();
+      toast('success', '已恢复');
+    },
+  });
 }
 
 async function handleBatchDelete() {
   const ok = await confirmFn({ message: `确定删除选中的 ${selectedIds.value.length} 道题目？`, icon: '🗑️' });
   if (!ok) return;
   await store.batchDelete(selectedIds.value);
+  toast('success', `已删除 ${selectedIds.value.length} 道题目`);
   selectedIds.value = [];
-  toast('success', '批量删除成功');
+}
+
+async function handleBatchUpdate() {
+  const updates: any = {};
+  if (batchForm.value.subject) updates.subject = batchForm.value.subject;
+  if (batchForm.value.difficulty > 0) updates.difficulty = batchForm.value.difficulty;
+  if (batchForm.value.category.trim()) updates.category = batchForm.value.category.trim();
+
+  if (Object.keys(updates).length === 0) {
+    toast('warning', '请至少填写一项修改');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/questions/batch-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: selectedIds.value, updates }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      toast('success', `已更新 ${json.data.updated} 道题目`);
+      showBatchModal.value = false;
+      selectedIds.value = [];
+      batchForm.value = { subject: '', difficulty: 0, category: '' };
+      store.fetchQuestions();
+    } else {
+      toast('error', json.error || '更新失败');
+    }
+  } catch {
+    toast('error', '网络错误');
+  }
+}
+
+async function handleExport(format: 'csv' | 'word') {
+  try {
+    const params = new URLSearchParams({ pageSize: '1000' });
+    if (filters.value.subject) params.set('subject', filters.value.subject);
+    if (filters.value.type) params.set('type', filters.value.type);
+    if (filters.value.keyword) params.set('keyword', filters.value.keyword);
+    const res = await fetch(`/api/questions?${params}`);
+    const json = await res.json();
+    if (json.success) {
+      const items = json.data.items;
+      if (format === 'csv') exportQuestionsCSV(items);
+      else exportQuestionsWord(items);
+      toast('success', `已导出 ${items.length} 道题目`);
+    }
+  } catch {
+    toast('error', '导出失败');
+  }
 }
 
 onMounted(() => store.fetchQuestions());
@@ -223,6 +334,7 @@ onMounted(() => store.fetchQuestions());
   font-size: 13px;
   line-height: 1.5;
   color: var(--text-secondary);
+  cursor: pointer;
 }
 .q-preview :deep(p) {
   margin: 0;

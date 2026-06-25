@@ -4,6 +4,7 @@
       <h1 class="page-title">
         <span class="title-icon">{{ isEdit ? '✏️' : '➕' }}</span>
         {{ isEdit ? '编辑题目' : '新建题目' }}
+        <span v-if="autoSaved" class="auto-save-badge">💾 已自动保存</span>
       </h1>
       <div class="btn-group">
         <button class="btn btn-primary" @click="handleSave" :disabled="saving">
@@ -53,7 +54,10 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label">题干 *（支持 Markdown + LaTeX）</label>
+          <label class="form-label">
+            题干 *（支持 Markdown + LaTeX）
+            <button class="btn btn-sm btn-ghost" style="float: right;" @click="triggerImageUpload('content')">🖼️ 插入图片</button>
+          </label>
           <textarea class="form-textarea" v-model="form.content" rows="6" placeholder="输入题干内容...&#10;&#10;LaTeX公式: $E=mc^2$&#10;下划线: ==重点内容==&#10;填空: ___"></textarea>
         </div>
 
@@ -104,6 +108,9 @@
         </div>
       </div>
     </div>
+
+    <!-- Hidden file input -->
+    <input ref="fileInput" type="file" accept="image/*" style="display:none;" @change="handleImageUpload" />
   </div>
 </template>
 
@@ -112,6 +119,7 @@ import { ref, computed, onMounted, inject } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuestionStore } from '@/stores/questionStore';
 import { renderMarkdown } from '@/utils/markdown';
+import { useAutoSave } from '@/composables/useAutoSave';
 import {
   SUBJECT_LABELS, QUESTION_TYPE_LABELS, DIFFICULTY_LABELS,
 } from '@/utils/constants';
@@ -120,12 +128,15 @@ import type { QuestionType, Subject, Difficulty } from 'shared/src/index';
 const route = useRoute();
 const router = useRouter();
 const store = useQuestionStore();
-const toast = inject<(type: string, msg: string) => void>('toast')!;
+const toast = inject<(type: string, msg: string, duration?: number, action?: any) => void>('toast')!;
 
 const isEdit = computed(() => !!route.params.id);
 const saving = ref(false);
 const newTag = ref('');
 const optionsText = ref('');
+const fileInput = ref<HTMLInputElement>();
+const autoSaved = ref(false);
+let uploadTarget = 'content';
 
 const form = ref({
   subject: 'chinese' as Subject,
@@ -139,6 +150,10 @@ const form = ref({
   tags: [] as string[],
   source: '',
 });
+
+// Auto-save
+const draftKey = computed(() => isEdit.value ? `edit-${route.params.id}` : 'new');
+const { hasDraft, load: loadDraft, clear: clearDraft } = useAutoSave(draftKey.value, form, 5000);
 
 const isChoiceType = computed(() =>
   ['choice', 'multi_choice'].includes(form.value.type)
@@ -160,6 +175,40 @@ function removeTag(t: string) {
   form.value.tags = form.value.tags.filter(tag => tag !== t);
 }
 
+// Image upload
+function triggerImageUpload(target: string) {
+  uploadTarget = target;
+  fileInput.value?.click();
+}
+
+async function handleImageUpload(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: formData });
+    const json = await res.json();
+    if (json.success) {
+      const md = `![图片](${json.data.url})`;
+      if (uploadTarget === 'content') {
+        form.value.content += '\n' + md;
+      } else if (uploadTarget === 'answer') {
+        form.value.answer += '\n' + md;
+      }
+      toast('success', '图片已上传');
+    } else {
+      toast('error', '上传失败: ' + (json.error || ''));
+    }
+  } catch {
+    toast('error', '上传失败');
+  }
+  // Reset input
+  (e.target as HTMLInputElement).value = '';
+}
+
 async function handleSave() {
   if (!form.value.content.trim() || !form.value.answer.trim()) {
     toast('error', '题干和答案不能为空');
@@ -171,7 +220,7 @@ async function handleSave() {
     const data: any = {
       ...form.value,
       options: isChoiceType.value
-        ? optionsText.value.split('\n').map(s => s.replace(/^[A-D][.、．)\s]+/, '').trim()).filter(Boolean)
+        ? optionsText.value.split('\n').map((s: string) => s.replace(/^[A-D][.、．)\s]+/, '').trim()).filter(Boolean)
         : undefined,
     };
 
@@ -183,6 +232,7 @@ async function handleSave() {
     }
 
     if (res.success) {
+      clearDraft();
       toast('success', isEdit.value ? '题目已更新' : '题目已创建');
       router.push('/questions');
     } else {
@@ -212,6 +262,14 @@ onMounted(async () => {
       if (q.options) {
         optionsText.value = q.options.map((o: string, i: number) => `${String.fromCharCode(65 + i)}. ${o}`).join('\n');
       }
+    }
+  } else {
+    // Check for draft
+    const draft = loadDraft();
+    if (draft && draft.content) {
+      form.value = { ...form.value, ...draft };
+      autoSaved.value = true;
+      setTimeout(() => { autoSaved.value = false; }, 3000);
     }
   }
 });
@@ -243,6 +301,14 @@ onMounted(async () => {
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-bottom: 8px;
+}
+
+.auto-save-badge {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--success);
+  margin-left: 12px;
+  animation: fadeIn 0.3s ease;
 }
 
 @media (max-width: 1024px) {

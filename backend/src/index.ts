@@ -1,11 +1,13 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { questionRouter } from './routes/questions';
 import { paperRouter } from './routes/papers';
 import { tagRouter } from './routes/tags';
 import { categoryRouter } from './routes/categories';
 import { importRouter } from './routes/import';
 import { practiceRouter } from './routes/practice';
+import { uploadRouter } from './routes/upload';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,6 +16,9 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 // Routes
 app.use('/api/questions', questionRouter);
 app.use('/api/papers', paperRouter);
@@ -21,6 +26,7 @@ app.use('/api/tags', tagRouter);
 app.use('/api/categories', categoryRouter);
 app.use('/api/import', importRouter);
 app.use('/api/practice', practiceRouter);
+app.use('/api/upload', uploadRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {
