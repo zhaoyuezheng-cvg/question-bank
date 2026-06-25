@@ -1,6 +1,17 @@
 <template>
   <div>
-    <h1 style="margin-bottom: 16px;">{{ isEdit ? '✏️ 编辑题目' : '➕ 新建题目' }}</h1>
+    <div class="page-header">
+      <h1 class="page-title">
+        <span class="title-icon">{{ isEdit ? '✏️' : '➕' }}</span>
+        {{ isEdit ? '编辑题目' : '新建题目' }}
+      </h1>
+      <div class="btn-group">
+        <button class="btn btn-primary" @click="handleSave" :disabled="saving">
+          {{ saving ? '保存中...' : '💾 保存' }}
+        </button>
+        <router-link to="/questions" class="btn">取消</router-link>
+      </div>
+    </div>
 
     <div class="edit-layout">
       <!-- Left: Form -->
@@ -63,37 +74,32 @@
 
         <div class="form-group">
           <label class="form-label">标签</label>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+          <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
             <span class="tag tag-removable" v-for="t in form.tags" :key="t" @click="removeTag(t)">
               {{ t }} ×
             </span>
           </div>
           <div style="display: flex; gap: 8px;">
-            <input class="form-input" v-model="newTag" placeholder="输入标签" @keyup.enter="addTag" style="flex:1;" />
+            <input class="form-input" v-model="newTag" placeholder="输入标签后回车" @keyup.enter="addTag" style="flex:1;" />
             <button class="btn" @click="addTag">添加</button>
           </div>
-        </div>
-
-        <div class="btn-group" style="margin-top: 20px;">
-          <button class="btn btn-primary" @click="handleSave" :disabled="saving">
-            {{ saving ? '保存中...' : '💾 保存' }}
-          </button>
-          <router-link to="/questions" class="btn">取消</router-link>
         </div>
       </div>
 
       <!-- Right: Preview -->
       <div class="card preview-panel">
         <div class="card-header">
-          <span class="card-title">实时预览</span>
+          <span class="card-title">👁️ 实时预览</span>
         </div>
-        <div class="markdown-body" v-html="previewContent"></div>
-        <div v-if="form.answer" style="margin-top: 16px;">
-          <strong style="color: var(--success);">答案：</strong>
+        <div class="preview-section">
+          <div class="markdown-body" v-html="previewContent"></div>
+        </div>
+        <div v-if="form.answer" class="preview-section" style="margin-top: 16px;">
+          <div class="preview-label" style="color: var(--success);">答案</div>
           <div class="markdown-body" v-html="previewAnswer"></div>
         </div>
-        <div v-if="form.analysis" style="margin-top: 16px;">
-          <strong style="color: var(--primary);">解析：</strong>
+        <div v-if="form.analysis" class="preview-section" style="margin-top: 16px;">
+          <div class="preview-label" style="color: var(--primary);">解析</div>
           <div class="markdown-body" v-html="previewAnalysis"></div>
         </div>
       </div>
@@ -102,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, inject } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuestionStore } from '@/stores/questionStore';
 import { renderMarkdown } from '@/utils/markdown';
@@ -114,6 +120,7 @@ import type { QuestionType, Subject, Difficulty } from 'shared/src/index';
 const route = useRoute();
 const router = useRouter();
 const store = useQuestionStore();
+const toast = inject<(type: string, msg: string) => void>('toast')!;
 
 const isEdit = computed(() => !!route.params.id);
 const saving = ref(false);
@@ -155,7 +162,7 @@ function removeTag(t: string) {
 
 async function handleSave() {
   if (!form.value.content.trim() || !form.value.answer.trim()) {
-    alert('题干和答案不能为空');
+    toast('error', '题干和答案不能为空');
     return;
   }
 
@@ -176,9 +183,10 @@ async function handleSave() {
     }
 
     if (res.success) {
+      toast('success', isEdit.value ? '题目已更新' : '题目已创建');
       router.push('/questions');
     } else {
-      alert('保存失败: ' + (res.error || '未知错误'));
+      toast('error', '保存失败: ' + (res.error || '未知错误'));
     }
   } finally {
     saving.value = false;
@@ -202,7 +210,7 @@ onMounted(async () => {
         source: q.source || '',
       };
       if (q.options) {
-        optionsText.value = q.options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join('\n');
+        optionsText.value = q.options.map((o: string, i: number) => `${String.fromCharCode(65 + i)}. ${o}`).join('\n');
       }
     }
   }
@@ -213,13 +221,28 @@ onMounted(async () => {
 .edit-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 20px;
   align-items: start;
 }
 
 .preview-panel {
   position: sticky;
-  top: 24px;
+  top: 28px;
+}
+
+.preview-section {
+  padding: 16px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  min-height: 60px;
+}
+
+.preview-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
 }
 
 @media (max-width: 1024px) {

@@ -1,8 +1,23 @@
 <template>
   <div>
-    <h1 style="margin-bottom: 16px;">{{ isEdit ? '✏️ 编辑试卷' : '➕ 新建试卷' }}</h1>
+    <div class="page-header">
+      <h1 class="page-title">
+        <span class="title-icon">{{ isEdit ? '✏️' : '➕' }}</span>
+        {{ isEdit ? '编辑试卷' : '新建试卷' }}
+      </h1>
+      <div class="btn-group">
+        <button class="btn btn-primary" @click="handleSave" :disabled="saving || !form.title">
+          {{ saving ? '保存中...' : '💾 保存试卷' }}
+        </button>
+        <router-link to="/papers" class="btn">取消</router-link>
+      </div>
+    </div>
 
-    <div class="card" style="margin-bottom: 16px;">
+    <!-- Paper Config -->
+    <div class="card" style="margin-bottom: 20px;">
+      <div class="card-header">
+        <span class="card-title">📋 试卷信息</span>
+      </div>
       <div class="form-row">
         <div class="form-group" style="flex: 2;">
           <label class="form-label">试卷名称 *</label>
@@ -53,11 +68,12 @@
     <!-- Question selection -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title">选题（已选 {{ selectedQuestions.length }} 道）</span>
-        <button class="btn btn-sm" @click="showPicker = true">➕ 添加题目</button>
+        <span class="card-title">📌 选题（已选 {{ selectedQuestions.length }} 道）</span>
+        <button class="btn btn-primary btn-sm" @click="showPicker = true">➕ 添加题目</button>
       </div>
 
-      <div v-if="!selectedQuestions.length" class="empty-state" style="padding: 24px;">
+      <div v-if="!selectedQuestions.length" class="empty-state" style="padding: 32px;">
+        <div class="empty-state-icon">📌</div>
         <p>尚未选择题目，点击「添加题目」从题库中选取</p>
       </div>
 
@@ -67,30 +83,23 @@
           <div class="sq-content">
             <div class="markdown-body" v-html="renderMarkdown(q.content.slice(0, 200))"></div>
             <div class="sq-meta">
-              <span class="tag">{{ getSubjectLabel(q.subject) }}</span>
-              <span class="tag">{{ q.category }}</span>
+              <span class="tag" style="font-size: 11px;">{{ getSubjectLabel(q.subject) }}</span>
+              <span class="tag" style="font-size: 11px;">{{ q.category }}</span>
             </div>
           </div>
           <div class="sq-actions">
-            <button class="btn btn-sm" @click="moveUp(idx)" :disabled="idx === 0">↑</button>
-            <button class="btn btn-sm" @click="moveDown(idx)" :disabled="idx === selectedQuestions.length - 1">↓</button>
-            <button class="btn btn-sm btn-danger" @click="removeQuestion(idx)">×</button>
+            <button class="btn btn-sm btn-icon" @click="moveUp(idx)" :disabled="idx === 0">↑</button>
+            <button class="btn btn-sm btn-icon" @click="moveDown(idx)" :disabled="idx === selectedQuestions.length - 1">↓</button>
+            <button class="btn btn-sm btn-icon" style="color: var(--danger);" @click="removeQuestion(idx)">×</button>
           </div>
         </div>
-      </div>
-
-      <div class="btn-group" style="margin-top: 20px;">
-        <button class="btn btn-primary" @click="handleSave" :disabled="saving || !form.title">
-          {{ saving ? '保存中...' : '💾 保存试卷' }}
-        </button>
-        <router-link to="/papers" class="btn">取消</router-link>
       </div>
     </div>
 
     <!-- Question Picker Modal -->
     <div v-if="showPicker" class="modal-overlay" @click.self="showPicker = false">
       <div class="modal" style="max-width: 800px;">
-        <div class="modal-title">选择题目</div>
+        <div class="modal-title">📌 选择题目</div>
         <div class="filter-bar" style="margin-bottom: 12px;">
           <div class="form-group">
             <select class="form-select" v-model="pickerFilter.subject" @change="loadPickerQuestions">
@@ -101,7 +110,7 @@
           <div class="form-group" style="flex:1;">
             <input class="form-input" v-model="pickerFilter.keyword" placeholder="搜索..." @keyup.enter="loadPickerQuestions" />
           </div>
-          <button class="btn" @click="loadPickerQuestions">搜索</button>
+          <button class="btn btn-primary" @click="loadPickerQuestions">搜索</button>
         </div>
 
         <div class="picker-list">
@@ -109,14 +118,14 @@
             <input type="checkbox" :checked="isPicked(q.id)" />
             <div class="picker-content">
               <div class="markdown-body" v-html="renderMarkdown(q.content.slice(0, 150))"></div>
-              <span class="tag" style="margin-top: 4px;">{{ getSubjectLabel(q.subject) }} · {{ q.category }}</span>
+              <span class="tag" style="margin-top: 6px; font-size: 11px;">{{ getSubjectLabel(q.subject) }} · {{ q.category }}</span>
             </div>
           </div>
         </div>
 
-        <div class="btn-group" style="margin-top: 12px;">
-          <button class="btn btn-primary" @click="showPicker = false">确定 (已选 {{ selectedQuestions.length }} 道)</button>
+        <div class="btn-group" style="margin-top: 16px; justify-content: flex-end;">
           <button class="btn" @click="showPicker = false">取消</button>
+          <button class="btn btn-primary" @click="showPicker = false">确定 (已选 {{ selectedQuestions.length }} 道)</button>
         </div>
       </div>
     </div>
@@ -124,7 +133,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, inject } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { usePaperStore } from '@/stores/paperStore';
 import { renderMarkdown } from '@/utils/markdown';
@@ -134,6 +143,7 @@ import type { Question, Subject } from 'shared/src/index';
 const route = useRoute();
 const router = useRouter();
 const paperStore = usePaperStore();
+const toast = inject<(type: string, msg: string) => void>('toast')!;
 
 const isEdit = computed(() => !!route.params.id);
 const saving = ref(false);
@@ -196,7 +206,7 @@ function moveDown(idx: number) {
 
 async function handleSave() {
   if (!form.value.title.trim()) {
-    alert('试卷名称不能为空');
+    toast('error', '试卷名称不能为空');
     return;
   }
 
@@ -222,9 +232,10 @@ async function handleSave() {
     }
 
     if (res.success) {
+      toast('success', isEdit.value ? '试卷已更新' : '试卷已创建');
       router.push('/papers');
     } else {
-      alert('保存失败: ' + (res.error || '未知错误'));
+      toast('error', '保存失败: ' + (res.error || '未知错误'));
     }
   } finally {
     saving.value = false;
@@ -264,23 +275,29 @@ onMounted(async () => {
 .sq-item {
   display: flex;
   gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--border);
+  padding: 14px;
+  border: 1.5px solid var(--border);
   border-radius: var(--radius);
   align-items: flex-start;
+  transition: all var(--transition-fast);
+}
+
+.sq-item:hover {
+  border-color: var(--primary-light);
+  background: var(--primary-50);
 }
 
 .sq-num {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  background: var(--primary);
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   flex-shrink: 0;
 }
 
@@ -290,7 +307,7 @@ onMounted(async () => {
 }
 
 .sq-meta {
-  margin-top: 4px;
+  margin-top: 6px;
   display: flex;
   gap: 4px;
 }
@@ -312,15 +329,16 @@ onMounted(async () => {
 .picker-item {
   display: flex;
   gap: 10px;
-  padding: 10px;
-  border: 1px solid var(--border);
+  padding: 12px;
+  border: 1.5px solid var(--border);
   border-radius: var(--radius);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all var(--transition-fast);
 }
 
 .picker-item:hover {
-  background: #f8fafc;
+  border-color: var(--primary-light);
+  background: var(--primary-50);
 }
 
 .picker-content {

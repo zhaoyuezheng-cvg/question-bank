@@ -1,10 +1,12 @@
 <template>
   <div>
-    <h1 style="margin-bottom: 16px;">❤️ 收藏夹</h1>
-
-    <div class="filter-bar">
-      <div class="form-group">
-        <select class="form-select" v-model="subject" @change="load">
+    <div class="page-header">
+      <h1 class="page-title">
+        <span class="title-icon">❤️</span>
+        收藏夹
+      </h1>
+      <div class="filter-bar" style="margin-bottom: 0; padding: 8px 12px;">
+        <select class="form-select" v-model="subject" @change="load" style="width: auto; min-width: 140px;">
           <option value="">全部学科</option>
           <option v-for="(label, key) in SUBJECT_LABELS" :key="key" :value="key">{{ label }}</option>
         </select>
@@ -19,20 +21,22 @@
 
     <div v-else class="fav-list">
       <div v-for="item in items" :key="item.id" class="card fav-item">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-          <div>
-            <span class="tag">{{ getSubjectLabel(item.question.subject) }}</span>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <span class="tag" :style="{ background: SUBJECT_COLORS[item.question.subject as Subject] + '18', color: SUBJECT_COLORS[item.question.subject as Subject] }">
+              {{ getSubjectLabel(item.question.subject as Subject) }}
+            </span>
             <span class="tag">{{ item.question.category }}</span>
             <span class="tag">{{ getTypeLabel(item.question.type) }}</span>
           </div>
           <button class="btn btn-sm btn-danger" @click="remove(item.questionId)">取消收藏</button>
         </div>
-        <div class="markdown-body" style="margin-top: 12px;" v-html="renderMarkdown(item.question.content)"></div>
-        <div style="margin-top: 8px; font-size: 13px; color: var(--success);">
-          <strong>答案：</strong>{{ item.question.answer?.slice(0, 100) }}
+        <div class="markdown-body" v-html="renderMarkdown(item.question.content)"></div>
+        <div style="margin-top: 10px; padding: 10px 14px; background: var(--success-light); border-radius: var(--radius); font-size: 13px;">
+          <strong style="color: var(--success);">答案：</strong>{{ item.question.answer?.slice(0, 100) }}
         </div>
-        <div v-if="item.note" style="margin-top: 4px; font-size: 12px; color: var(--text-muted);">
-          备注：{{ item.note }}
+        <div v-if="item.note" style="margin-top: 6px; font-size: 12px; color: var(--text-muted);">
+          📝 备注：{{ item.note }}
         </div>
       </div>
     </div>
@@ -42,7 +46,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { renderMarkdown } from '@/utils/markdown';
-import { SUBJECT_LABELS, getSubjectLabel, getTypeLabel } from '@/utils/constants';
+import { SUBJECT_LABELS, SUBJECT_COLORS, getSubjectLabel, getTypeLabel } from '@/utils/constants';
+import type { Subject } from 'shared/src/index';
 
 const items = ref<any[]>([]);
 const loading = ref(false);
@@ -67,6 +72,6 @@ onMounted(load);
 </script>
 
 <style scoped>
-.fav-list { display: flex; flex-direction: column; gap: 12px; }
-.fav-item { padding: 16px; }
+.fav-list { display: flex; flex-direction: column; gap: 16px; }
+.fav-item { padding: 20px; }
 </style>

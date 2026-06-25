@@ -1,10 +1,14 @@
 <template>
   <div v-if="paper">
-    <div class="no-print" style="margin-bottom: 16px;">
+    <div class="page-header no-print">
+      <h1 class="page-title">
+        <span class="title-icon">📄</span>
+        {{ paper.title }}
+      </h1>
       <div class="btn-group">
         <router-link to="/papers" class="btn">← 返回列表</router-link>
         <router-link :to="`/papers/${paper.id}/edit`" class="btn">✏️ 编辑</router-link>
-        <button class="btn" @click="handlePrint">🖨️ 打印</button>
+        <button class="btn btn-primary" @click="handlePrint">🖨️ 打印</button>
       </div>
     </div>
 
@@ -22,7 +26,7 @@
       <div v-if="paper.description" class="paper-desc">{{ paper.description }}</div>
 
       <div class="paper-body">
-        <div v-for="(q, idx) in paper.questions" :key="q.id" class="question-block">
+        <div v-for="(q, idx) in (paper as any).questions" :key="q.id" class="question-block">
           <div class="q-header">
             <span class="q-num">{{ idx + 1 }}.</span>
             <span class="q-type">[{{ getTypeLabel(q.type) }}]</span>
@@ -30,17 +34,14 @@
           </div>
           <div class="markdown-body q-content" v-html="renderMarkdown(q.content)"></div>
 
-          <!-- Options for choice questions -->
           <div v-if="q.options?.length" class="q-options">
             <div v-for="(opt, oi) in q.options" :key="oi" class="q-option">
               {{ String.fromCharCode(65 + oi) }}. {{ opt }}
             </div>
           </div>
 
-          <!-- Answer area -->
           <div v-if="shouldShowAnswerArea(q.type)" class="answer-area" :style="answerAreaStyle"></div>
 
-          <!-- Answer & Analysis (if configured) -->
           <div v-if="paper.layoutConfig?.showAnswer && q.answer" class="q-answer">
             <strong>【答案】</strong>
             <div class="markdown-body" v-html="renderMarkdown(q.answer)"></div>
@@ -98,49 +99,53 @@ onMounted(() => {
   background: white;
   max-width: 800px;
   margin: 0 auto;
-  padding: 40px;
-  box-shadow: var(--shadow-lg);
-  border-radius: var(--radius);
+  padding: 48px;
+  box-shadow: var(--shadow-xl);
+  border-radius: var(--radius-lg);
+  color: #1e293b;
 }
 
 .paper-header {
   text-align: center;
   font-size: 12px;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 8px;
-  margin-bottom: 20px;
+  color: #94a3b8;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 12px;
+  margin-bottom: 24px;
 }
 
 .paper-title {
   text-align: center;
-  font-size: 22px;
-  margin-bottom: 8px;
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: #1e293b;
 }
 
 .paper-meta {
   text-align: center;
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-bottom: 16px;
+  font-size: 14px;
+  color: #64748b;
+  margin-bottom: 20px;
   display: flex;
   justify-content: center;
-  gap: 20px;
+  gap: 24px;
 }
 
 .paper-desc {
   text-align: center;
-  font-size: 13px;
-  color: var(--text-muted);
-  margin-bottom: 20px;
+  font-size: 14px;
+  color: #94a3b8;
+  margin-bottom: 24px;
+  font-style: italic;
 }
 
 .paper-body {
-  margin-top: 24px;
+  margin-top: 28px;
 }
 
 .question-block {
-  margin-bottom: 24px;
+  margin-bottom: 28px;
   page-break-inside: avoid;
 }
 
@@ -152,17 +157,18 @@ onMounted(() => {
 .q-num {
   font-size: 16px;
   margin-right: 4px;
+  color: #1e293b;
 }
 
 .q-type {
   font-size: 12px;
-  color: var(--text-muted);
+  color: #94a3b8;
   margin-right: 4px;
 }
 
 .q-score {
   font-size: 12px;
-  color: var(--primary);
+  color: #6366f1;
 }
 
 .q-content {
@@ -172,46 +178,47 @@ onMounted(() => {
 .q-options {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px 16px;
-  margin: 8px 0;
-  padding-left: 20px;
+  gap: 6px 20px;
+  margin: 10px 0;
+  padding-left: 24px;
 }
 
 .q-option {
   font-size: 14px;
-  padding: 2px 0;
+  padding: 4px 0;
+  color: #334155;
 }
 
 .answer-area {
-  border-bottom: 1px dashed #ccc;
-  margin: 8px 0;
+  border-bottom: 1px dashed #cbd5e1;
+  margin: 10px 0;
 }
 
 .q-answer {
-  margin-top: 8px;
-  padding: 8px 12px;
+  margin-top: 10px;
+  padding: 10px 14px;
   background: #f0fdf4;
   border-radius: var(--radius);
-  border-left: 3px solid var(--success);
+  border-left: 3px solid #10b981;
   font-size: 13px;
 }
 
 .q-analysis {
-  margin-top: 8px;
-  padding: 8px 12px;
+  margin-top: 10px;
+  padding: 10px 14px;
   background: #eef2ff;
   border-radius: var(--radius);
-  border-left: 3px solid var(--primary);
+  border-left: 3px solid #6366f1;
   font-size: 13px;
 }
 
 .paper-footer {
   text-align: center;
   font-size: 12px;
-  color: var(--text-muted);
-  border-top: 1px solid var(--border);
-  padding-top: 8px;
-  margin-top: 32px;
+  color: #94a3b8;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+  margin-top: 36px;
 }
 
 @media print {

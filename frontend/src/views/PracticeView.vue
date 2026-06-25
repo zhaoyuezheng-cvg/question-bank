@@ -1,10 +1,17 @@
 <template>
   <div>
-    <h1 style="margin-bottom: 16px;">🎯 答题练习</h1>
+    <div class="page-header">
+      <h1 class="page-title">
+        <span class="title-icon">🎯</span>
+        答题练习
+      </h1>
+    </div>
 
     <!-- Config -->
-    <div v-if="!started" class="card" style="max-width: 600px;">
-      <div class="card-title" style="margin-bottom: 16px;">练习设置</div>
+    <div v-if="!started" class="card" style="max-width: 560px;">
+      <div class="card-header">
+        <span class="card-title">⚙️ 练习设置</span>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">学科</label>
@@ -22,7 +29,7 @@
           </select>
         </div>
       </div>
-      <button class="btn btn-primary" @click="startPractice" :disabled="loading">
+      <button class="btn btn-primary btn-lg" @click="startPractice" :disabled="loading" style="width: 100%; margin-top: 8px;">
         {{ loading ? '加载中...' : '🚀 开始练习' }}
       </button>
     </div>
@@ -31,13 +38,13 @@
     <div v-else>
       <!-- Progress -->
       <div class="card" style="margin-bottom: 16px;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span>第 <strong>{{ currentIndex + 1 }}</strong> / {{ questions.length }} 题</span>
-          <span>
-            ✅ {{ correctCount }} 正确 &nbsp;
-            ❌ {{ wrongCount }} 错误 &nbsp;
-            ⏱️ {{ formatTime(elapsed) }}
-          </span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-weight: 600;">第 <strong style="color: var(--primary);">{{ currentIndex + 1 }}</strong> / {{ questions.length }} 题</span>
+          <div style="display: flex; gap: 16px; font-size: 13px; color: var(--text-secondary);">
+            <span>✅ {{ correctCount }}</span>
+            <span>❌ {{ wrongCount }}</span>
+            <span>⏱️ {{ formatTime(elapsed) }}</span>
+          </div>
         </div>
         <div class="progress-bar">
           <div class="progress-fill" :style="{ width: ((currentIndex + 1) / questions.length * 100) + '%' }"></div>
@@ -47,9 +54,11 @@
       <!-- Question -->
       <div class="card" v-if="currentQ">
         <div class="q-meta">
-          <span class="tag">{{ getSubjectLabel(currentQ.subject) }}</span>
+          <span class="tag" :style="{ background: SUBJECT_COLORS[currentQ.subject as Subject] + '18', color: SUBJECT_COLORS[currentQ.subject as Subject] }">
+            {{ getSubjectLabel(currentQ.subject as Subject) }}
+          </span>
           <span class="tag">{{ currentQ.category }}</span>
-          <span class="diff-badge" :style="{ background: DIFFICULTY_COLORS[currentQ.difficulty] }">
+          <span class="diff-badge" :style="{ background: DIFFICULTY_COLORS[currentQ.difficulty as Difficulty] }">
             {{ getDifficultyLabel(currentQ.difficulty) }}
           </span>
         </div>
@@ -81,7 +90,7 @@
         </div>
 
         <!-- Action buttons -->
-        <div class="btn-group" style="margin-top: 16px;">
+        <div class="btn-group" style="margin-top: 20px;">
           <button v-if="!showResult" class="btn btn-primary" @click="submitAnswer" :disabled="!userAnswer">
             ✅ 提交答案
           </button>
@@ -96,16 +105,16 @@
           <div class="result-header">
             {{ isCorrect ? '🎉 回答正确！' : '❌ 回答错误' }}
           </div>
-          <div v-if="!isCorrect" style="margin-top: 8px;">
+          <div v-if="!isCorrect" style="margin-top: 10px;">
             <strong>正确答案：</strong>
             <div class="markdown-body" v-html="renderMarkdown(currentQ.answer)"></div>
           </div>
-          <div v-if="currentQ.analysis" style="margin-top: 8px;">
+          <div v-if="currentQ.analysis" style="margin-top: 10px;">
             <strong>解析：</strong>
             <div class="markdown-body" v-html="renderMarkdown(currentQ.analysis)"></div>
           </div>
-          <div style="margin-top: 8px;">
-            <button class="btn btn-sm" @click="toggleFavorite(currentQ.id)">
+          <div style="margin-top: 12px;">
+            <button class="btn btn-sm" :class="{ 'btn-primary': isFav(currentQ.id) }" @click="toggleFavorite(currentQ.id)">
               {{ isFav(currentQ.id) ? '❤️ 已收藏' : '🤍 收藏' }}
             </button>
           </div>
@@ -113,8 +122,9 @@
       </div>
 
       <!-- Summary -->
-      <div v-if="finished" class="card" style="text-align: center; padding: 40px;">
-        <h2 style="margin-bottom: 16px;">📊 练习完成！</h2>
+      <div v-if="finished" class="card summary-card">
+        <h2 style="margin-bottom: 8px; font-size: 24px;">📊 练习完成！</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 24px;">来看看你的成绩吧</p>
         <div class="summary-grid">
           <div class="summary-item">
             <div class="summary-value">{{ questions.length }}</div>
@@ -128,7 +138,7 @@
             <div class="summary-value">{{ wrongCount }}</div>
             <div class="summary-label">错误</div>
           </div>
-          <div class="summary-item">
+          <div class="summary-item" :class="accuracy >= 80 ? 'success' : accuracy >= 60 ? '' : 'danger'">
             <div class="summary-value">{{ accuracy }}%</div>
             <div class="summary-label">正确率</div>
           </div>
@@ -145,7 +155,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { renderMarkdown } from '@/utils/markdown';
-import { SUBJECT_LABELS, DIFFICULTY_COLORS, getSubjectLabel, getDifficultyLabel } from '@/utils/constants';
+import { SUBJECT_LABELS, SUBJECT_COLORS, DIFFICULTY_COLORS, getSubjectLabel, getDifficultyLabel } from '@/utils/constants';
+import type { Subject, Difficulty } from 'shared/src/index';
 
 const started = ref(false);
 const loading = ref(false);
@@ -280,34 +291,39 @@ onUnmounted(() => { if (timer) clearInterval(timer); });
 
 .options-list { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
 .option-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 16px; border: 2px solid var(--border);
-  border-radius: var(--radius); cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px; border: 2px solid var(--border);
+  border-radius: var(--radius); cursor: pointer; transition: all var(--transition-fast);
 }
-.option-item:hover { border-color: var(--primary-light); }
-.option-item.selected { border-color: var(--primary); background: #eef2ff; }
-.option-item.correct { border-color: var(--success); background: #f0fdf4; }
-.option-item.wrong { border-color: var(--danger); background: #fef2f2; }
+.option-item:hover { border-color: var(--primary-light); background: var(--primary-50); }
+.option-item.selected { border-color: var(--primary); background: var(--primary-50); }
+.option-item.correct { border-color: var(--success); background: var(--success-light); }
+.option-item.wrong { border-color: var(--danger); background: var(--danger-light); }
 .option-letter {
-  width: 28px; height: 28px; border-radius: 50%;
-  background: #f1f5f9; display: flex; align-items: center;
-  justify-content: center; font-weight: 600; font-size: 14px; flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--bg); display: flex; align-items: center;
+  justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0;
+  transition: all var(--transition-fast);
 }
+.option-item.selected .option-letter { background: var(--primary); color: white; }
+.option-item.correct .option-letter { background: var(--success); color: white; }
+.option-item.wrong .option-letter { background: var(--danger); color: white; }
 
-.progress-bar { height: 6px; background: #e2e8f0; border-radius: 3px; margin-top: 8px; overflow: hidden; }
-.progress-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width 0.3s; }
+.progress-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--primary-light)); border-radius: 4px; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
 
-.result-box { margin-top: 16px; padding: 16px; border-radius: var(--radius); }
-.result-correct { background: #f0fdf4; border-left: 4px solid var(--success); }
-.result-wrong { background: #fef2f2; border-left: 4px solid var(--danger); }
-.result-header { font-size: 18px; font-weight: 600; }
+.result-box { margin-top: 20px; padding: 20px; border-radius: var(--radius-lg); }
+.result-correct { background: var(--success-light); border-left: 4px solid var(--success); }
+.result-wrong { background: var(--danger-light); border-left: 4px solid var(--danger); }
+.result-header { font-size: 18px; font-weight: 700; }
 
-.summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 24px 0; }
-.summary-item { text-align: center; padding: 16px; background: #f1f5f9; border-radius: var(--radius); }
-.summary-item.success { background: #f0fdf4; }
-.summary-item.danger { background: #fef2f2; }
-.summary-value { font-size: 32px; font-weight: 700; color: var(--primary); }
+.summary-card { text-align: center; padding: 48px; }
+.summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 24px 0; max-width: 500px; margin-left: auto; margin-right: auto; }
+.summary-item { text-align: center; padding: 20px; background: var(--bg); border-radius: var(--radius-lg); }
+.summary-item.success { background: var(--success-light); }
+.summary-item.danger { background: var(--danger-light); }
+.summary-value { font-size: 36px; font-weight: 800; color: var(--primary); }
 .summary-item.success .summary-value { color: var(--success); }
 .summary-item.danger .summary-value { color: var(--danger); }
-.summary-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+.summary-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; font-weight: 500; }
 </style>

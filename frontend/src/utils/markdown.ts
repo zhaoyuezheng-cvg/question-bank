@@ -11,9 +11,9 @@ const md = new MarkdownIt({
 // Custom LaTeX block/inline rendering
 // Display math: $$ ... $$
 // Inline math: $ ... $
-function latexPlugin(md: MarkdownIt) {
+function latexPlugin(md: any) {
   // Inline math
-  md.inline.rules.math = function (state, silent) {
+  md.inline.rules.math = function (state: any, silent: boolean) {
     if (state.src.charCodeAt(state.pos) !== 0x24 /* $ */) return false;
     if (state.src.charCodeAt(state.pos + 1) === 0x24) return false; // skip $$
 
@@ -37,7 +37,7 @@ function latexPlugin(md: MarkdownIt) {
   };
 
   // Display math
-  md.block.rules.math = function (state, startLine, endLine, silent) {
+  md.block.rules.math = function (state: any, startLine: number, endLine: number, silent: boolean) {
     const startPos = state.bMarks[startLine] + state.tShift[startLine];
     const maxPos = state.eMarks[startLine];
 
@@ -75,7 +75,7 @@ function latexPlugin(md: MarkdownIt) {
   };
 
   // Renderers
-  md.renderer.rules.math_inline = function (tokens, idx) {
+  md.renderer.rules.math_inline = function (tokens: any, idx: number) {
     try {
       return `<span class="math-inline">${katex.renderToString(tokens[idx].content, { throwOnError: false, displayMode: false })}</span>`;
     } catch {
@@ -83,7 +83,7 @@ function latexPlugin(md: MarkdownIt) {
     }
   };
 
-  md.renderer.rules.math_block = function (tokens, idx) {
+  md.renderer.rules.math_block = function (tokens: any, idx: number) {
     try {
       return `<div class="math-block">${katex.renderToString(tokens[idx].content, { throwOnError: false, displayMode: true })}</div>`;
     } catch {
@@ -93,8 +93,8 @@ function latexPlugin(md: MarkdownIt) {
 }
 
 // Underline syntax: ==text==
-function underlinePlugin(md: MarkdownIt) {
-  md.inline.rules.underline = function (state, silent) {
+function underlinePlugin(md: any) {
+  md.inline.rules.underline = function (state: any, silent: boolean) {
     if (state.src.charCodeAt(state.pos) !== 0x3D /* = */) return false;
     if (state.src.charCodeAt(state.pos + 1) !== 0x3D) return false;
 
@@ -114,14 +114,14 @@ function underlinePlugin(md: MarkdownIt) {
     return true;
   };
 
-  md.renderer.rules.underline = function (tokens, idx) {
+  md.renderer.rules.underline = function (tokens: any, idx: number) {
     return `<u>${tokens[idx].content}</u>`;
   };
 }
 
 // Blank/fill-in: ___
-function blankPlugin(md: MarkdownIt) {
-  md.inline.rules.blank = function (state, silent) {
+function blankPlugin(md: any) {
+  md.inline.rules.blank = function (state: any, silent: boolean) {
     const pos = state.pos;
     if (state.src.charCodeAt(pos) !== 0x5F /* _ */) return false;
     if (state.src.charCodeAt(pos + 1) !== 0x5F || state.src.charCodeAt(pos + 2) !== 0x5F) return false;
