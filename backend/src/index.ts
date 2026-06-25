@@ -8,6 +8,11 @@ import { categoryRouter } from './routes/categories';
 import { importRouter } from './routes/import';
 import { practiceRouter } from './routes/practice';
 import { uploadRouter } from './routes/upload';
+import { examRouter } from './routes/exam';
+import { flashcardRouter } from './routes/flashcard';
+import { recommendRouter } from './routes/recommend';
+import { backupRouter } from './routes/backup';
+import { templateRouter } from './routes/templates';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +32,11 @@ app.use('/api/categories', categoryRouter);
 app.use('/api/import', importRouter);
 app.use('/api/practice', practiceRouter);
 app.use('/api/upload', uploadRouter);
+app.use('/api/exam', examRouter);
+app.use('/api/flashcards', flashcardRouter);
+app.use('/api/recommend', recommendRouter);
+app.use('/api/backup', backupRouter);
+app.use('/api/templates', templateRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

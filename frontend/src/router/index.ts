@@ -73,6 +73,24 @@ const routes = [
     component: () => import('@/views/FavoritesView.vue'),
     meta: { title: '收藏夹' },
   },
+  {
+    path: '/exam',
+    name: 'exam',
+    component: () => import('@/views/ExamView.vue'),
+    meta: { title: '考试模拟' },
+  },
+  {
+    path: '/flashcards',
+    name: 'flashcards',
+    component: () => import('@/views/FlashcardView.vue'),
+    meta: { title: '闪卡记忆' },
+  },
+  {
+    path: '/stats',
+    name: 'stats',
+    component: () => import('@/views/StatsView.vue'),
+    meta: { title: '数据分析' },
+  },
 ];
 
 const router = createRouter({

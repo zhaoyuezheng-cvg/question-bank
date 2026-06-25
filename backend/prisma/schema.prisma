@@ -25,9 +25,11 @@ model Question {
   updatedAt   Int
 
   // Relations
-  paperItems  PaperQuestion[]
-  errorItems  ErrorBook[]
-  favorites   Favorite[]
+  paperItems    PaperQuestion[]
+  errorItems    ErrorBook[]
+  favorites     Favorite[]
+  flashcards    Flashcard[]
+  practiceRecords PracticeRecord[]
 
   @@index([subject])
   @@index([category])
@@ -127,7 +129,73 @@ model PracticeRecord {
   timeSpent   Int? // 用时（秒）
   createdAt   Int
 
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
   @@index([questionId])
   @@index([isCorrect])
   @@index([createdAt])
+}
+
+// ---- 考试模拟 ----
+model ExamSession {
+  id          String @id
+  paperId     String
+  title       String
+  subject     String
+  totalScore  Int
+  timeLimit   Int     // 时间限制（分钟）
+  answers     String? // JSON: { questionId: userAnswer }
+  score       Int?    // 得分
+  correctCount Int?
+  totalCount  Int
+  status      String  @default("in_progress") // in_progress | completed | timeout
+  startedAt   Int
+  completedAt Int?
+  createdAt   Int
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ---- 闪卡复习 ----
+model Flashcard {
+  id          String @id
+  questionId  String
+  easeFactor  Float   @default(2.5)  // SM-2 ease factor
+  interval    Int     @default(0)    // 当前间隔（天）
+  repetitions Int     @default(0)    // 重复次数
+  nextReview  Int     // 下次复习时间（unix timestamp）
+  lastReview  Int?
+  createdAt   Int
+  updatedAt   Int
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId])
+  @@index([nextReview])
+}
+
+// ---- 试卷模板 ----
+model PaperTemplate {
+  id          String @id
+  name        String
+  description String?
+  subject     String
+  config      String  // JSON: layoutConfig + filters
+  createdAt   Int
+  updatedAt   Int
+
+  @@index([subject])
+}
+
+// ---- 题目关联 ----
+model QuestionRelation {
+  id          String @id
+  questionId  String
+  relatedId   String
+  relationType String // "similar" | "same_knowledge" | "prerequisite"
+
+  @@unique([questionId, relatedId])
+  @@index([questionId])
+  @@index([relatedId])
 }

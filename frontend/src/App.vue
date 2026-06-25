@@ -77,6 +77,30 @@
         </ul>
       </div>
 
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">进阶</div>
+        <ul class="sidebar-nav">
+          <li>
+            <router-link to="/exam" @click="closeMobile">
+              <span class="nav-icon">📋</span>
+              <span>考试模拟</span>
+            </router-link>
+          </li>
+          <li>
+            <router-link to="/flashcards" @click="closeMobile">
+              <span class="nav-icon">🃏</span>
+              <span>闪卡记忆</span>
+            </router-link>
+          </li>
+          <li>
+            <router-link to="/stats" @click="closeMobile">
+              <span class="nav-icon">📈</span>
+              <span>数据分析</span>
+            </router-link>
+          </li>
+        </ul>
+      </div>
+
       <div class="sidebar-footer">
         <div class="sidebar-shortcuts">
           <div class="shortcut-hint"><kbd>N</kbd> 新建题目</div>
