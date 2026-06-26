@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { ref } from 'vue';
 
 const routes = [
   {
@@ -64,8 +65,20 @@ const routes = [
   {
     path: '/practice/errors',
     name: 'error-book',
-    component: () => import('@/views/ErrorBookView.vue'),
+    component: () => import('@/views/ErrorBookEnhancedView.vue'),
     meta: { title: '错题本' },
+  },
+  {
+    path: '/study',
+    name: 'study',
+    component: () => import('@/views/StudyPlanView.vue'),
+    meta: { title: '学习计划' },
+  },
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { title: '登录', public: true },
   },
   {
     path: '/favorites',

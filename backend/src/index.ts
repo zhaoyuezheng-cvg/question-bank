@@ -15,6 +15,8 @@ import { backupRouter } from './routes/backup';
 import { templateRouter } from './routes/templates';
 import { passageRouter } from './routes/passages';
 import { aiRouter } from './routes/ai';
+import { authRouter, authMiddleware } from './routes/auth';
+import { studyRouter } from './routes/study';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -40,7 +42,12 @@ app.use('/api/recommend', recommendRouter);
 app.use('/api/backup', backupRouter);
 app.use('/api/templates', templateRouter);
 app.use('/api/passages', passageRouter);
+// Auth middleware (skips login/register/health)
+app.use(authMiddleware);
+
 app.use('/api/ai', aiRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/study', studyRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

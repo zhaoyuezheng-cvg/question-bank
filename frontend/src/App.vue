@@ -69,6 +69,18 @@
       </div>
 
       <div class="sidebar-section">
+        <div v-if="!sidebarCollapsed" class="sidebar-section-label">学习</div>
+        <ul class="sidebar-nav">
+          <li>
+            <router-link to="/study" @click="closeMobile" :title="sidebarCollapsed ? '学习计划' : ''">
+              <span class="nav-icon">📅</span>
+              <span v-if="!sidebarCollapsed">学习计划</span>
+            </router-link>
+          </li>
+        </ul>
+      </div>
+
+      <div class="sidebar-section">
         <div v-if="!sidebarCollapsed" class="sidebar-section-label">练习</div>
         <ul class="sidebar-nav">
           <li>

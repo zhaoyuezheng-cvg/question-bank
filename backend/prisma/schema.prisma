@@ -214,7 +214,39 @@ model PaperTemplate {
   @@index([subject])
 }
 
+// ---- 学习计划 ----
+model StudyPlan {
+  id          String @id
+  date        String   // YYYY-MM-DD
+  subject     String
+  targetCount Int      // 目标题数
+  doneCount   Int      @default(0) // 完成题数
+  status      String   @default("pending") // pending | done | skipped
+  createdAt   Int
+  updatedAt   Int
+
+  @@unique([date, subject])
+  @@index([date])
+}
+
+model StudyCheckin {
+  id        String @id
+  date      String @unique // YYYY-MM-DD
+  totalDone Int    @default(0) // 当日完成总题数
+  streak    Int    @default(0) // 连续天数
+  createdAt Int
+}
+
 // ---- 题目关联 ----
+// ---- 用户 ----
+model User {
+  id           String @id
+  username     String @unique
+  passwordHash String
+  role         String @default("user") // admin | user
+  createdAt    Int
+}
+
 model QuestionRelation {
   id          String @id
   questionId  String
