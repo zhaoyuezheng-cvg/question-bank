@@ -8,8 +8,8 @@ export const questionRouter = Router();
 questionRouter.get('/', async (req: Request, res: Response) => {
   try {
     const {
-      subject, category, subCategory, type, difficulty,
-      tags, keyword, page = '1', pageSize = '20', sortBy
+      subject, category, subCategory, type, subType, difficulty,
+      tags, keyword, page = '1', pageSize = '20', sortBy, passageId
     } = req.query as Record<string, string | undefined>;
 
     const pageNum = Math.max(1, parseInt(page || '1'));
@@ -21,6 +21,8 @@ questionRouter.get('/', async (req: Request, res: Response) => {
     if (category) where.category = category;
     if (subCategory) where.subCategory = subCategory;
     if (type) where.type = type;
+    if (subType) where.subType = subType;
+    if (passageId) where.passageId = passageId;
     if (difficulty) where.difficulty = parseInt(difficulty as string);
     if (keyword) {
       where.OR = [
@@ -143,6 +145,8 @@ questionRouter.post('/', async (req: Request, res: Response) => {
         analysis: body.analysis || '',
         tags: body.tags ? JSON.stringify(body.tags) : null,
         source: body.source || null,
+        subType: body.subType || null,
+        passageId: body.passageId || null,
         createdAt: now,
         updatedAt: now,
       },
@@ -161,7 +165,7 @@ questionRouter.put('/:id', async (req: Request, res: Response) => {
     const now = Math.floor(Date.now() / 1000);
 
     // Whitelist allowed fields
-    const allowed = ['subject', 'category', 'subCategory', 'type', 'difficulty', 'content', 'answer', 'analysis', 'source'];
+    const allowed = ['subject', 'category', 'subCategory', 'type', 'subType', 'difficulty', 'content', 'answer', 'analysis', 'source', 'passageId'];
     const data: any = {};
     for (const f of allowed) {
       if (body[f] !== undefined) data[f] = body[f];

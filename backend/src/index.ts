@@ -13,6 +13,7 @@ import { flashcardRouter } from './routes/flashcard';
 import { recommendRouter } from './routes/recommend';
 import { backupRouter } from './routes/backup';
 import { templateRouter } from './routes/templates';
+import { passageRouter } from './routes/passages';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,6 +38,7 @@ app.use('/api/flashcards', flashcardRouter);
 app.use('/api/recommend', recommendRouter);
 app.use('/api/backup', backupRouter);
 app.use('/api/templates', templateRouter);
+app.use('/api/passages', passageRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

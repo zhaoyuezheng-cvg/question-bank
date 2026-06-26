@@ -40,6 +40,16 @@
 
         <div class="form-row">
           <div class="form-group">
+            <label class="form-label">细分题型（阅读理解）</label>
+            <select class="form-select" v-model="form.subType">
+              <option value="">无</option>
+              <option v-for="st in availableSubTypes" :key="st" :value="st">{{ getSubTypeLabel(st) }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
             <label class="form-label">一级分类</label>
             <input class="form-input" v-model="form.category" placeholder="如：古诗词" />
           </div>
@@ -122,6 +132,7 @@ import { renderMarkdown } from '@/utils/markdown';
 import { useAutoSave } from '@/composables/useAutoSave';
 import {
   SUBJECT_LABELS, QUESTION_TYPE_LABELS, DIFFICULTY_LABELS,
+  getSubTypesForSubject, getSubTypeLabel,
 } from '@/utils/constants';
 import type { QuestionType, Subject, Difficulty } from 'shared/src/index';
 
@@ -149,7 +160,10 @@ const form = ref({
   analysis: '',
   tags: [] as string[],
   source: '',
+  subType: '',
 });
+
+const availableSubTypes = computed(() => getSubTypesForSubject(form.value.subject));
 
 // Auto-save
 const draftKey = computed(() => isEdit.value ? `edit-${route.params.id}` : 'new');
@@ -260,6 +274,7 @@ onMounted(async () => {
         analysis: q.analysis,
         tags: q.tags || [],
         source: q.source || '',
+        subType: q.subType || '',
       };
       if (q.options) {
         optionsText.value = q.options.map((o: string, i: number) => `${String.fromCharCode(65 + i)}. ${o}`).join('\n');
@@ -283,6 +298,7 @@ onMounted(async () => {
         analysis: q.analysis,
         tags: q.tags || [],
         source: q.source || '',
+        subType: q.subType || '',
       };
       if (q.options) {
         optionsText.value = q.options.map((o: string, i: number) => `${String.fromCharCode(65 + i)}. ${o}`).join('\n');

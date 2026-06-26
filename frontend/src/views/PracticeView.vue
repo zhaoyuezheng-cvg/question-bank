@@ -30,6 +30,15 @@
             </select>
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">细分题型（阅读理解专项）</label>
+            <select class="form-select" v-model="config.subType">
+              <option value="">全部题型</option>
+              <option v-for="st in availableSubTypes" :key="st" :value="st">{{ getSubTypeLabel(st) }}</option>
+            </select>
+          </div>
+        </div>
         <div class="form-group" style="margin-top: 8px;">
           <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
             <input type="checkbox" v-model="errorOnly" />
@@ -212,9 +221,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, inject } from 'vue';
+import { useRoute } from 'vue-router';
 import * as echarts from 'echarts';
 import { renderMarkdown } from '@/utils/markdown';
-import { SUBJECT_LABELS, SUBJECT_COLORS, DIFFICULTY_COLORS, getSubjectLabel, getDifficultyLabel } from '@/utils/constants';
+import { SUBJECT_LABELS, SUBJECT_COLORS, DIFFICULTY_COLORS, getSubjectLabel, getDifficultyLabel, getSubTypesForSubject, getSubTypeLabel, READING_SUB_TYPES } from '@/utils/constants';
 import type { Subject, Difficulty } from 'shared/src/index';
 
 const started = ref(false);
@@ -234,12 +244,14 @@ const favoriteIds = ref<Set<string>>(new Set());
 const showReview = ref(false);
 const reviewResults = ref<Record<number, { isCorrect: boolean; userAnswer: string }>>({});
 const errorOnly = ref(false);
+const availableSubTypes = computed(() => config.value.subject ? getSubTypesForSubject(config.value.subject) : Object.keys(READING_SUB_TYPES));
 const paused = ref(false);
 const shuffledOptions = ref<Record<number, string[]>>({});
 const toast = inject<(type: string, msg: string) => void>('toast')!;
 let timer: any = null;
 
-const config = ref({ subject: '', count: 10 });
+const route = useRoute();
+const config = ref({ subject: '', count: 10, category: '', subCategory: '', subType: '' });
 
 const currentQ = computed(() => questions.value[currentIndex.value]);
 const accuracy = computed(() => {
@@ -274,7 +286,7 @@ function togglePause() {
 async function startPractice() {
   loading.value = true;
   try {
-    const body: any = { subject: config.value.subject || undefined, count: config.value.count };
+    const body: any = { subject: config.value.subject || undefined, count: config.value.count, category: config.value.category || undefined, subCategory: config.value.subCategory || undefined, subType: config.value.subType || undefined };
     if (errorOnly.value) body.errorOnly = true;
     const res = await fetch('/api/practice/random-paper', {
       method: 'POST',
@@ -304,7 +316,7 @@ async function startPractice() {
       userAnswer.value = '';
       showResult.value = false;
       elapsed.value = 0;
-      timer = setInterval(() => elapsed.value++, 1000);
+timer = setInterval(() => elapsed.value++, 1000);
     }
   } finally {
     loading.value = false;

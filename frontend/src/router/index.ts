@@ -74,6 +74,30 @@ const routes = [
     meta: { title: '收藏夹' },
   },
   {
+    path: '/passages',
+    name: 'passages',
+    component: () => import('@/views/PassageListView.vue'),
+    meta: { title: '阅读材料' },
+  },
+  {
+    path: '/passages/new',
+    name: 'passage-new',
+    component: () => import('@/views/PassageEditView.vue'),
+    meta: { title: '新建阅读材料' },
+  },
+  {
+    path: '/passages/:id',
+    name: 'passage-detail',
+    component: () => import('@/views/PassageDetailView.vue'),
+    meta: { title: '阅读材料详情' },
+  },
+  {
+    path: '/passages/:id/edit',
+    name: 'passage-edit',
+    component: () => import('@/views/PassageEditView.vue'),
+    meta: { title: '编辑阅读材料' },
+  },
+  {
     path: '/exam',
     name: 'exam',
     component: () => import('@/views/ExamView.vue'),

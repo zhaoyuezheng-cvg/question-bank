@@ -14,6 +14,7 @@ model Question {
   category    String
   subCategory String
   type        String
+  subType     String?  // 阅读理解细分题型，如：句子赏析、推理判断
   difficulty  Int
   content     String
   options     String?  // JSON array string
@@ -21,14 +22,16 @@ model Question {
   analysis    String
   tags        String?  // JSON array string
   source      String?
+  passageId   String?  // 关联阅读材料
   createdAt   Int
   updatedAt   Int
 
   // Relations
-  paperItems    PaperQuestion[]
-  errorItems    ErrorBook[]
-  favorites     Favorite[]
-  flashcards    Flashcard[]
+  passage         Passage?       @relation(fields: [passageId], references: [id], onDelete: SetNull)
+  paperItems      PaperQuestion[]
+  errorItems      ErrorBook[]
+  favorites       Favorite[]
+  flashcards      Flashcard[]
   practiceRecords PracticeRecord[]
 
   @@index([subject])
@@ -36,6 +39,28 @@ model Question {
   @@index([subCategory])
   @@index([type])
   @@index([difficulty])
+  @@index([passageId])
+}
+
+// ---- 阅读材料 ----
+model Passage {
+  id          String   @id
+  title       String   // 材料标题，如：《背影》阅读理解
+  subject     String   // 学科
+  category    String   // 一级分类：现代文阅读/古诗文阅读/阅读理解/...
+  subCategory String   // 二级分类：小说阅读/散文阅读/文言文阅读/...
+  content     String   // 文章正文（Markdown/LaTeX/图片）
+  source      String?  // 来源
+  tags        String?  // JSON array
+  createdAt   Int
+  updatedAt   Int
+
+  // Relations
+  questions   Question[]
+
+  @@index([subject])
+  @@index([category])
+  @@index([subCategory])
 }
 
 model ExamPaper {
@@ -85,6 +110,7 @@ model Category {
   subject   String
   name      String
   parentId  String?
+  isPassage Boolean @default(false)  // 是否为阅读材料分类
 
   @@index([subject])
   @@index([parentId])

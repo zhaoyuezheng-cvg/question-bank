@@ -272,7 +272,7 @@ practiceRouter.get('/history', async (req: Request, res: Response) => {
 // POST /api/practice/random-paper - 随机组卷
 practiceRouter.post('/random-paper', async (req: Request, res: Response) => {
   try {
-    const { subject, count = 10, difficulty, types, errorOnly } = req.body;
+    const { subject, count = 10, difficulty, types, errorOnly, category, subCategory, subType } = req.body;
 
     let questionIds: string[] | null = null;
 
@@ -298,6 +298,9 @@ practiceRouter.post('/random-paper', async (req: Request, res: Response) => {
       if (subject) where.subject = subject;
       if (difficulty) where.difficulty = difficulty;
       if (types?.length) where.type = { in: types };
+      if (category) where.category = category;
+      if (subCategory) where.subCategory = subCategory;
+      if (subType) where.subType = subType;
     }
 
     const total = await prisma.question.count({ where });

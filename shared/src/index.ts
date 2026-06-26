@@ -54,6 +54,23 @@ export interface Question {
   analysis: string;         // 解析
   tags: string[];           // 自定义标签
   source?: string;          // 来源（如：2024全国卷）
+  subType?: string;         // 阅读理解细分题型
+  passageId?: string;       // 关联阅读材料ID
+  createdAt: number;
+  updatedAt: number;
+}
+
+// ---- 阅读材料 ----
+export interface Passage {
+  id: string;
+  title: string;
+  subject: Subject;
+  category: string;
+  subCategory: string;
+  content: string;
+  source?: string;
+  tags?: string[];
+  questions?: Question[];
   createdAt: number;
   updatedAt: number;
 }
@@ -116,12 +133,14 @@ export interface QuestionFilter {
   category?: string;
   subCategory?: string;
   type?: QuestionType;
+  subType?: string;
   difficulty?: Difficulty;
   tags?: string[];
   keyword?: string;
   page?: number;
   pageSize?: number;
   sortBy?: string;
+  passageId?: string;
 }
 
 // ---- 批量导入 ----

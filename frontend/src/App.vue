@@ -53,6 +53,12 @@
               <span v-if="!sidebarCollapsed">批量导入</span>
             </router-link>
           </li>
+          <li>
+            <router-link to="/passages" @click="closeMobile" :title="sidebarCollapsed ? '阅读材料' : ''">
+              <span class="nav-icon">📖</span>
+              <span v-if="!sidebarCollapsed">阅读材料</span>
+            </router-link>
+          </li>
         </ul>
       </div>
 
