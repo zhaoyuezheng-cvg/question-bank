@@ -54,6 +54,12 @@
             </router-link>
           </li>
           <li>
+            <router-link to="/ai-import" @click="closeMobile" :title="sidebarCollapsed ? 'AI导入' : ''">
+              <span class="nav-icon">🤖</span>
+              <span v-if="!sidebarCollapsed">AI 智能导入</span>
+            </router-link>
+          </li>
+          <li>
             <router-link to="/passages" @click="closeMobile" :title="sidebarCollapsed ? '阅读材料' : ''">
               <span class="nav-icon">📖</span>
               <span v-if="!sidebarCollapsed">阅读材料</span>

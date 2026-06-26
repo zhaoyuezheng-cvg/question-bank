@@ -74,6 +74,12 @@ const routes = [
     meta: { title: '收藏夹' },
   },
   {
+    path: '/ai-import',
+    name: 'ai-import',
+    component: () => import('@/views/AiImportView.vue'),
+    meta: { title: 'AI 智能导入' },
+  },
+  {
     path: '/passages',
     name: 'passages',
     component: () => import('@/views/PassageListView.vue'),
