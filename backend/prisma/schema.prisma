@@ -247,6 +247,23 @@ model User {
   createdAt    Int
 }
 
+// ---- 教材目录 ----
+model TextbookCatalog {
+  id        String  @id
+  name      String  // 名称，如：鲁教版数学七年级
+  subject   String  // 学科
+  grade     String  // 年级
+  version   String  // 版本，如：鲁教版/人教版
+  volume    String  // 上册/下册
+  chapters  String  // JSON: [{name, sections: [{name}]}]
+  isDefault Boolean @default(false)
+  createdAt Int
+  updatedAt Int
+
+  @@index([subject])
+  @@index([grade])
+}
+
 model QuestionRelation {
   id          String @id
   questionId  String

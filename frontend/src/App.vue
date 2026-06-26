@@ -65,6 +65,12 @@
               <span v-if="!sidebarCollapsed">阅读材料</span>
             </router-link>
           </li>
+          <li>
+            <router-link to="/textbooks" @click="closeMobile" :title="sidebarCollapsed ? '教材目录' : ''">
+              <span class="nav-icon">📚</span>
+              <span v-if="!sidebarCollapsed">教材目录</span>
+            </router-link>
+          </li>
         </ul>
       </div>
 

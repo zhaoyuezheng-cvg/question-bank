@@ -17,6 +17,7 @@ import { passageRouter } from './routes/passages';
 import { aiRouter } from './routes/ai';
 import { authRouter, authMiddleware } from './routes/auth';
 import { studyRouter } from './routes/study';
+import { textbookRouter } from './routes/textbooks';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -48,6 +49,7 @@ app.use(authMiddleware);
 app.use('/api/ai', aiRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/study', studyRouter);
+app.use('/api/textbooks', textbookRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

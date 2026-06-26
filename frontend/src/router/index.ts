@@ -87,6 +87,12 @@ const routes = [
     meta: { title: '收藏夹' },
   },
   {
+    path: '/textbooks',
+    name: 'textbooks',
+    component: () => import('@/views/TextbookListView.vue'),
+    meta: { title: '教材目录' },
+  },
+  {
     path: '/ai-import',
     name: 'ai-import',
     component: () => import('@/views/AiImportView.vue'),
