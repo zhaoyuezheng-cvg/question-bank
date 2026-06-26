@@ -214,6 +214,28 @@ model PaperTemplate {
   @@index([subject])
 }
 
+// ---- 英语单词 ----
+model WordBook {
+  id          String @id
+  word        String  // 英文单词
+  phonetic    String? // 音标
+  meaning     String  // 中文释义
+  partOfSpeech String? // 词性
+  example     String? // 例句
+  unit        String? // 所属单元，如：Unit 1
+  subject     String  @default("english")
+  mastery     Int     @default(0) // 掌握度 0-5
+  nextReview  Int     // 下次复习时间
+  reviewCount Int     @default(0)
+  createdAt   Int
+  updatedAt   Int
+
+  @@unique([word, subject])
+  @@index([unit])
+  @@index([nextReview])
+  @@index([mastery])
+}
+
 // ---- 学习计划 ----
 model StudyPlan {
   id          String @id

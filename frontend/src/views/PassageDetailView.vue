@@ -22,7 +22,7 @@
         <span v-if="passage.subCategory" class="tag">{{ passage.subCategory }}</span>
         <span v-if="passage.source" class="tag" style="opacity: 0.6;">{{ passage.source }}</span>
         <span style="margin-left: auto; font-size: 13px; color: var(--text-muted);">
-          {{ passage.questions?.length || 0 }} 道题
+          {{ passage.questions?.length || 0 }} 道题 · ⏱️ {{ formatTime(readingTime) }}
         </span>
       </div>
     </div>
@@ -34,7 +34,7 @@
         <div class="card-header">
           <span class="card-title">📄 原文</span>
         </div>
-        <div class="markdown-body passage-text" v-html="renderMarkdown(passage.content)"></div>
+        <div class="markdown-body passage-text" :class="{ 'passage-classical': isClassical }" v-html="renderMarkdown(passage.content)"></div>
       </div>
 
       <!-- Questions -->
@@ -90,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { renderMarkdown } from '@/utils/markdown';
 import {
@@ -102,6 +102,19 @@ const route = useRoute();
 const router = useRouter();
 const passage = ref<any>(null);
 const showAnswer = ref(false);
+const isClassical = computed(() => {
+  const cat = passage.value?.category || '';
+  const sub = passage.value?.subCategory || '';
+  return cat.includes('古诗') || cat.includes('文言') || sub.includes('文言') || sub.includes('古诗');
+});
+const readingTime = ref(0);
+let readTimer: any = null;
+
+function formatTime(s: number) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+}
 
 async function loadData() {
   const res = await fetch(`/api/passages/${route.params.id}`);
@@ -116,7 +129,7 @@ function startPractice() {
   router.push({ path: '/practice', query: { passageId: passage.value.id } });
 }
 
-onMounted(loadData);
+onMounted(() => { loadData(); readTimer = setInterval(() => readingTime.value++, 1000); });
 </script>
 
 <style scoped>
@@ -213,5 +226,16 @@ onMounted(loadData);
   .passage-content-card {
     position: static;
   }
+}
+
+.passage-classical {
+  font-family: 'SimSun', 'Noto Serif SC', serif;
+  font-size: 17px;
+  line-height: 2.2;
+  text-indent: 0;
+  letter-spacing: 0.05em;
+}
+.passage-classical :deep(p) {
+  margin-bottom: 12px;
 }
 </style>

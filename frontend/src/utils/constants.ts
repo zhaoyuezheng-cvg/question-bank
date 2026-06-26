@@ -34,6 +34,23 @@ export const READING_SUB_TYPES: Record<string, { label: string; subjects?: strin
   '材料分析': { label: '材料分析', subjects: ['history', 'politics', 'geography'] },
   '图表分析': { label: '图表分析', subjects: ['math', 'physics', 'chemistry', 'biology', 'geography'] },
   '论述题': { label: '论述题', subjects: ['history', 'politics'] },
+  // 数学细分
+  '计算题': { label: '计算题', subjects: ['math'] },
+  '证明题': { label: '证明题', subjects: ['math'] },
+  '应用题': { label: '应用题', subjects: ['math'] },
+  '几何题': { label: '几何题', subjects: ['math'] },
+  '函数题': { label: '函数题', subjects: ['math'] },
+  '方案设计': { label: '方案设计', subjects: ['math'] },
+  '规律探究': { label: '规律探究', subjects: ['math'] },
+  '新定义题': { label: '新定义题', subjects: ['math'] },
+  '动态问题': { label: '动态问题', subjects: ['math'] },
+  '分类讨论': { label: '分类讨论', subjects: ['math'] },
+  // 语文细分补充
+  '断句翻译': { label: '断句翻译', subjects: ['chinese'] },
+  '名句默写': { label: '名句默写', subjects: ['chinese'] },
+  '词语运用': { label: '词语运用', subjects: ['chinese'] },
+  '病句辨析': { label: '病句辨析', subjects: ['chinese'] },
+  '语句衔接': { label: '语句衔接', subjects: ['chinese'] },
 };
 
 export function getSubTypeLabel(st: string): string {

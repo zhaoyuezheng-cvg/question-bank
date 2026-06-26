@@ -83,6 +83,12 @@
               <span v-if="!sidebarCollapsed">学习计划</span>
             </router-link>
           </li>
+          <li>
+            <router-link to="/words" @click="closeMobile" :title="sidebarCollapsed ? '单词本' : ''">
+              <span class="nav-icon">📖</span>
+              <span v-if="!sidebarCollapsed">单词本</span>
+            </router-link>
+          </li>
         </ul>
       </div>
 
