@@ -1,16 +1,19 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
+import { auditLog } from '../utils/audit';
 
 export const recommendRouter = Router();
 
 // GET /api/recommend/weak - 智能推荐薄弱题目
 recommendRouter.get('/weak', async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId;
     const { limit = '10' } = req.query as Record<string, string>;
     const limitNum = Math.min(50, Math.max(1, parseInt(limit)));
 
     // Analyze practice records to find weak areas
     const records = await prisma.practiceRecord.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
       take: 1000,
       include: { question: true },
@@ -124,13 +127,14 @@ recommendRouter.get('/similar/:id', async (req: Request, res: Response) => {
 // GET /api/recommend/enhanced-stats - 增强统计
 recommendRouter.get('/enhanced-stats', async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId;
     const { period } = req.query as Record<string, string>;
     const now = Math.floor(Date.now() / 1000);
     let since = 0;
     if (period === 'week') since = now - 7 * 86400;
     else if (period === 'month') since = now - 30 * 86400;
 
-    const where: any = {};
+    const where: any = { userId };
     if (since > 0) where.createdAt = { gte: since };
 
     const records = await prisma.practiceRecord.findMany({

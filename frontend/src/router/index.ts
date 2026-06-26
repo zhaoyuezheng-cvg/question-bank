@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { ref } from 'vue';
 
 const routes = [
   {
@@ -151,6 +150,21 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+});
+
+// 路由守卫：未登录跳转登录页
+router.beforeEach((to, _from, next) => {
+  const token = localStorage.getItem('qb-token');
+  const isPublic = to.meta.public === true;
+
+  if (!token && !isPublic) {
+    next({ name: 'login', query: { redirect: to.fullPath } });
+  } else if (token && to.name === 'login') {
+    // 已登录时访问登录页，跳转首页
+    next('/');
+  } else {
+    next();
+  }
 });
 
 // Update page title

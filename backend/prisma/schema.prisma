@@ -121,6 +121,7 @@ model Category {
 model ErrorBook {
   id          String @id
   questionId  String
+  userId      String?  // 所属用户
   wrongAnswer String  // 用户的错误答案
   errorNote   String? // 错误原因备注
   isResolved  Boolean @default(false) // 是否已掌握
@@ -128,38 +129,46 @@ model ErrorBook {
   updatedAt   Int
 
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([questionId])
   @@index([isResolved])
+  @@index([userId])
 }
 
 // ---- 收藏夹 ----
 model Favorite {
   id         String @id
   questionId String
+  userId     String?  // 所属用户
   note       String? // 收藏备注
   createdAt  Int
 
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([questionId])
-  @@unique([questionId])
+  @@index([userId])
+  @@unique([questionId, userId])
 }
 
 // ---- 答题记录 ----
 model PracticeRecord {
   id          String @id
   questionId  String
+  userId      String?  // 所属用户
   userAnswer  String
   isCorrect   Boolean
   timeSpent   Int? // 用时（秒）
   createdAt   Int
 
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([questionId])
   @@index([isCorrect])
   @@index([createdAt])
+  @@index([userId])
 }
 
 // ---- 考试模拟 ----
@@ -267,6 +276,31 @@ model User {
   passwordHash String
   role         String @default("user") // admin | user
   createdAt    Int
+
+  // Relations
+  errorBooks      ErrorBook[]
+  favorites       Favorite[]
+  practiceRecords PracticeRecord[]
+  auditLogs       AuditLog[]
+}
+
+// ---- 审计日志 ----
+model AuditLog {
+  id        String @id
+  userId    String?
+  action    String   // 操作类型：create/update/delete/login/register
+  target    String   // 操作对象：question/paper/user/...
+  targetId  String?  // 操作对象ID
+  detail    String?  // 详情
+  ip        String?  // IP地址
+  createdAt Int
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([target])
+  @@index([createdAt])
 }
 
 // ---- 教材目录 ----

@@ -30,7 +30,13 @@ app.use(express.json({ limit: '10mb' }));
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
-// Routes
+// Auth & public routes (no auth required)
+app.use('/api/auth', authRouter);
+
+// Auth middleware (skips login/register/health)
+app.use(authMiddleware);
+
+// Protected routes (auth required)
 app.use('/api/questions', questionRouter);
 app.use('/api/papers', paperRouter);
 app.use('/api/tags', tagRouter);
@@ -44,11 +50,7 @@ app.use('/api/recommend', recommendRouter);
 app.use('/api/backup', backupRouter);
 app.use('/api/templates', templateRouter);
 app.use('/api/passages', passageRouter);
-// Auth middleware (skips login/register/health)
-app.use(authMiddleware);
-
 app.use('/api/ai', aiRouter);
-app.use('/api/auth', authRouter);
 app.use('/api/study', studyRouter);
 app.use('/api/textbooks', textbookRouter);
 app.use('/api/words', wordRouter);

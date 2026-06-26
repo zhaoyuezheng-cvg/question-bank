@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
 import { v4 as uuid } from 'uuid';
+import { auditLog } from '../utils/audit';
 
 export const questionRouter = Router();
 
@@ -185,23 +186,68 @@ questionRouter.put('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/questions/:id
+// DELETE /api/questions/:id（关联检查）
 questionRouter.delete('/:id', async (req: Request, res: Response) => {
   try {
-    await prisma.question.delete({ where: { id: req.params.id } });
+    const id = req.params.id;
+    // 检查关联数据
+    const [paperItems, errorItems, favorites, flashcards, records] = await Promise.all([
+      prisma.paperQuestion.count({ where: { questionId: id } }),
+      prisma.errorBook.count({ where: { questionId: id } }),
+      prisma.favorite.count({ where: { questionId: id } }),
+      prisma.flashcard.count({ where: { questionId: id } }).catch(() => 0),
+      prisma.practiceRecord.count({ where: { questionId: id } }),
+    ]);
+    const related = { paperItems, errorItems, favorites, flashcards, records };
+    const totalRelated = paperItems + errorItems + favorites + flashcards + records;
+
+    if (totalRelated > 0 && req.query.force !== 'true') {
+      return res.json({
+        success: false,
+        error: `该题目有 ${totalRelated } 条关联数据（试卷引用: ${paperItems}，错题: ${errorItems}，收藏: ${favorites}，闪卡: ${flashcards}，答题记录: ${records}）`,
+        data: { related, needConfirm: true },
+      });
+    }
+
+    await prisma.question.delete({ where: { id } });
+    await auditLog({ userId: (req as any).userId, action: 'delete', target: 'question', targetId: id, ip: req.ip });
     res.json({ success: true, message: '已删除' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// POST /api/questions/batch-delete
+// POST /api/questions/batch-delete（关联检查）
 questionRouter.post('/batch-delete', async (req: Request, res: Response) => {
   try {
-    const { ids } = req.body;
+    const { ids, force } = req.body;
     if (!Array.isArray(ids)) return res.status(400).json({ success: false, error: 'ids 必须是数组' });
 
+    if (!force) {
+      // 检查每个题目的关联
+      const issues: { id: string; count: number }[] = [];
+      for (const id of ids) {
+        const [pe, er, fa, fl, pr] = await Promise.all([
+          prisma.paperQuestion.count({ where: { questionId: id } }),
+          prisma.errorBook.count({ where: { questionId: id } }),
+          prisma.favorite.count({ where: { questionId: id } }),
+          prisma.flashcard.count({ where: { questionId: id } }).catch(() => 0),
+          prisma.practiceRecord.count({ where: { questionId: id } }),
+        ]);
+        const total = pe + er + fa + fl + pr;
+        if (total > 0) issues.push({ id, count: total });
+      }
+      if (issues.length > 0) {
+        return res.json({
+          success: false,
+          error: `${issues.length} 道题目有关联数据，确认删除？`,
+          data: { issues, needConfirm: true },
+        });
+      }
+    }
+
     const result = await prisma.question.deleteMany({ where: { id: { in: ids } } });
+    await auditLog({ userId: (req as any).userId, action: 'batch_delete', target: 'question', detail: `删除 ${result.count} 道题`, ip: req.ip });
     res.json({ success: true, data: { deleted: result.count } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

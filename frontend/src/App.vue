@@ -165,6 +165,9 @@
       @click="closeMobile"
     />
 
+    <!-- Mobile header -->
+    <button class="mobile-menu-btn" @click="mobileOpen = true" aria-label="菜单">☰</button>
+
     <!-- Main -->
     <main class="main-content">
       <router-view v-slot="{ Component }">
@@ -390,5 +393,44 @@ provide('confirm', showConfirm);
 .sidebar.collapsed .sidebar-footer { padding: 16px 8px; }
 
 .mobile-overlay { display: none; }
-@media (max-width: 768px) { .mobile-overlay { display: block; } }
+.mobile-menu-btn { display: none; }
+
+@media (max-width: 768px) {
+  .mobile-overlay { display: block; }
+  .mobile-menu-btn {
+    display: flex;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 50;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+  }
+
+  .sidebar {
+    position: fixed;
+    left: -260px;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    transition: left 0.3s ease;
+    width: 260px !important;
+  }
+  .sidebar.mobile-open {
+    left: 0;
+  }
+
+  .main-content {
+    padding: 16px !important;
+    padding-top: 56px !important;
+  }
+}
 </style>

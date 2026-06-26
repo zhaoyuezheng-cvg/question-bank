@@ -6,11 +6,12 @@ export const practiceRouter = Router();
 
 // ---- 错题本 ----
 
-// GET /api/practice/errors - 获取错题列表
+// GET /api/practice/errors - 获取错题列表（按用户隔离）
 practiceRouter.get('/errors', async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId;
     const { subject, isResolved, page = '1', pageSize = '20' } = req.query as Record<string, string>;
-    const where: any = {};
+    const where: any = { userId };
     if (subject) where.question = { subject };
     if (isResolved !== undefined) where.isResolved = isResolved === 'true';
 
@@ -46,6 +47,7 @@ practiceRouter.get('/errors', async (req: Request, res: Response) => {
 // POST /api/practice/errors - 加入错题本
 practiceRouter.post('/errors', async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId;
     const { questionId, wrongAnswer, errorNote } = req.body;
     if (!questionId) return res.status(400).json({ success: false, error: '缺少 questionId' });
 
@@ -53,7 +55,7 @@ practiceRouter.post('/errors', async (req: Request, res: Response) => {
     const item = await prisma.errorBook.upsert({
       where: { id: questionId + '_error' },
       update: { wrongAnswer, errorNote, updatedAt: now, isResolved: false },
-      create: { id: uuid(), questionId, wrongAnswer: wrongAnswer || '', errorNote, createdAt: now, updatedAt: now },
+      create: { id: uuid(), questionId, userId, wrongAnswer: wrongAnswer || '', errorNote, createdAt: now, updatedAt: now },
     });
 
     res.status(201).json({ success: true, data: item });
@@ -65,6 +67,11 @@ practiceRouter.post('/errors', async (req: Request, res: Response) => {
 // PUT /api/practice/errors/:id - 标记已掌握
 practiceRouter.put('/errors/:id', async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId;
+    const existing = await prisma.errorBook.findUnique({ where: { id: req.params.id } });
+    if (!existing || (existing.userId && existing.userId !== userId)) {
+      return res.status(403).json({ success: false, error: '无权操作' });
+    }
     const { isResolved } = req.body;
     const item = await prisma.errorBook.update({
       where: { id: req.params.id },
@@ -79,6 +86,11 @@ practiceRouter.put('/errors/:id', async (req: Request, res: Response) => {
 // DELETE /api/practice/errors/:id
 practiceRouter.delete('/errors/:id', async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId;
+    const existing = await prisma.errorBook.findUnique({ where: { id: req.params.id } });
+    if (!existing || (existing.userId && existing.userId !== userId)) {
+      return res.status(403).json({ success: false, error: '无权操作' });
+    }
     await prisma.errorBook.delete({ where: { id: req.params.id } });
     res.json({ success: true, message: '已移除' });
   } catch (err: any) {
@@ -88,11 +100,12 @@ practiceRouter.delete('/errors/:id', async (req: Request, res: Response) => {
 
 // ---- 收藏夹 ----
 
-// GET /api/practice/favorites
+// GET /api/practice/favorites（按用户隔离）
 practiceRouter.get('/favorites', async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId;
     const { subject, page = '1', pageSize = '20' } = req.query as Record<string, string>;
-    const where: any = {};
+    const where: any = { userId };
     if (subject) where.question = { subject };
 
     const pageNum = Math.max(1, parseInt(page));
@@ -127,15 +140,19 @@ practiceRouter.get('/favorites', async (req: Request, res: Response) => {
 // POST /api/practice/favorites
 practiceRouter.post('/favorites', async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId;
     const { questionId, note } = req.body;
     if (!questionId) return res.status(400).json({ success: false, error: '缺少 questionId' });
 
     const now = Math.floor(Date.now() / 1000);
-    const item = await prisma.favorite.upsert({
-      where: { questionId },
-      update: { note },
-      create: { id: uuid(), questionId, note, createdAt: now },
-    });
+    // 用 userId + questionId 查找已有收藏
+    const existing = await prisma.favorite.findFirst({ where: { questionId, userId } });
+    let item;
+    if (existing) {
+      item = await prisma.favorite.update({ where: { id: existing.id }, data: { note } });
+    } else {
+      item = await prisma.favorite.create({ data: { id: uuid(), questionId, userId, note, createdAt: now } });
+    }
     res.status(201).json({ success: true, data: item });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -145,7 +162,8 @@ practiceRouter.post('/favorites', async (req: Request, res: Response) => {
 // DELETE /api/practice/favorites/:questionId
 practiceRouter.delete('/favorites/:questionId', async (req: Request, res: Response) => {
   try {
-    await prisma.favorite.deleteMany({ where: { questionId: req.params.questionId } });
+    const userId = (req as any).userId;
+    await prisma.favorite.deleteMany({ where: { questionId: req.params.questionId, userId } });
     res.json({ success: true, message: '已取消收藏' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -157,13 +175,14 @@ practiceRouter.delete('/favorites/:questionId', async (req: Request, res: Respon
 // POST /api/practice/submit - 提交答案
 practiceRouter.post('/submit', async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId;
     const { questionId, userAnswer, timeSpent } = req.body;
     if (!questionId || !userAnswer) return res.status(400).json({ success: false, error: '缺少参数' });
 
     const question = await prisma.question.findUnique({ where: { id: questionId } });
     if (!question) return res.status(404).json({ success: false, error: '题目不存在' });
 
-    // 判断正误（简单匹配，选择题精确匹配，其他包含匹配）
+    // 判断正误
     const correctAnswer = question.answer.trim().toUpperCase();
     const user = userAnswer.trim().toUpperCase();
     let isCorrect = false;
@@ -171,53 +190,44 @@ practiceRouter.post('/submit', async (req: Request, res: Response) => {
     if (['choice', 'multi_choice', 'true_false'].includes(question.type)) {
       isCorrect = user === correctAnswer;
     } else {
-      // 填空/简答：答案包含关键词即算对
       const keywords = correctAnswer.split(/[,，、\n]/).map(s => s.trim()).filter(Boolean);
       isCorrect = keywords.length > 0 && keywords.some(k => user.includes(k));
     }
 
     const now = Math.floor(Date.now() / 1000);
     const record = await prisma.practiceRecord.create({
-      data: { id: uuid(), questionId, userAnswer, isCorrect, timeSpent, createdAt: now },
+      data: { id: uuid(), questionId, userId, userAnswer, isCorrect, timeSpent, createdAt: now },
     });
 
-    // 如果答错，自动加入错题本
+    // 答错自动加入错题本
     if (!isCorrect) {
       await prisma.errorBook.upsert({
         where: { id: questionId + '_error' },
         update: { wrongAnswer: userAnswer, updatedAt: now, isResolved: false },
-        create: { id: uuid(), questionId, wrongAnswer: userAnswer, createdAt: now, updatedAt: now },
+        create: { id: uuid(), questionId, userId, wrongAnswer: userAnswer, createdAt: now, updatedAt: now },
       });
     }
 
     res.json({
       success: true,
-      data: {
-        isCorrect,
-        correctAnswer: question.answer,
-        analysis: question.analysis,
-        recordId: record.id,
-      },
+      data: { isCorrect, correctAnswer: question.answer, analysis: question.analysis, recordId: record.id },
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// GET /api/practice/stats - 答题统计
-practiceRouter.get('/stats', async (_req: Request, res: Response) => {
+// GET /api/practice/stats - 答题统计（按用户）
+practiceRouter.get('/stats', async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId;
+    const userWhere = { userId };
     const [totalAnswered, correctCount, errorCount, favoriteCount] = await Promise.all([
-      prisma.practiceRecord.count(),
-      prisma.practiceRecord.count({ where: { isCorrect: true } }),
-      prisma.errorBook.count({ where: { isResolved: false } }),
-      prisma.favorite.count(),
+      prisma.practiceRecord.count({ where: userWhere }),
+      prisma.practiceRecord.count({ where: { ...userWhere, isCorrect: true } }),
+      prisma.errorBook.count({ where: { ...userWhere, isResolved: false } }),
+      prisma.favorite.count({ where: userWhere }),
     ]);
-
-    const bySubject = await prisma.practiceRecord.groupBy({
-      by: ['isCorrect'],
-      _count: true,
-    });
 
     res.json({
       success: true,
@@ -234,20 +244,20 @@ practiceRouter.get('/stats', async (_req: Request, res: Response) => {
   }
 });
 
-// GET /api/practice/history - 答题历史（按天汇总）
+// GET /api/practice/history - 答题历史（按用户）
 practiceRouter.get('/history', async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId;
     const { days = '30' } = req.query as Record<string, string>;
     const daysNum = Math.min(365, Math.max(1, parseInt(days)));
     const now = Math.floor(Date.now() / 1000);
     const since = now - daysNum * 86400;
 
     const records = await prisma.practiceRecord.findMany({
-      where: { createdAt: { gte: since } },
+      where: { userId, createdAt: { gte: since } },
       orderBy: { createdAt: 'asc' },
     });
 
-    // Group by day
     const byDay: Record<string, { total: number; correct: number }> = {};
     for (const r of records) {
       const day = new Date(r.createdAt * 1000).toISOString().slice(0, 10);
@@ -272,13 +282,13 @@ practiceRouter.get('/history', async (req: Request, res: Response) => {
 // POST /api/practice/random-paper - 随机组卷
 practiceRouter.post('/random-paper', async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId;
     const { subject, count = 10, difficulty, types, errorOnly, category, subCategory, subType } = req.body;
 
     let questionIds: string[] | null = null;
 
-    // If errorOnly, get questions from error book
     if (errorOnly) {
-      const errorWhere: any = { isResolved: false };
+      const errorWhere: any = { isResolved: false, userId };
       if (subject) errorWhere.question = { subject };
       const errors = await prisma.errorBook.findMany({
         where: errorWhere,
@@ -309,7 +319,6 @@ practiceRouter.post('/random-paper', async (req: Request, res: Response) => {
     const takeCount = Math.min(count, total);
     const questions = await prisma.question.findMany({ where, take: takeCount * 3 });
 
-    // Fisher-Yates shuffle and pick
     for (let i = questions.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [questions[i], questions[j]] = [questions[j], questions[i]];

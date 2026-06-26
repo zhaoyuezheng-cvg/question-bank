@@ -79,7 +79,8 @@ async function handleLogin() {
     if (json.success) {
       localStorage.setItem('qb-token', json.data.token);
       localStorage.setItem('qb-user', JSON.stringify(json.data.user));
-      router.push('/');
+      const redirect = (router.currentRoute.value.query.redirect as string) || '/';
+      router.push(redirect);
     } else {
       error.value = json.error || '登录失败';
     }
@@ -92,7 +93,8 @@ async function handleLogin() {
 
 async function handleRegister() {
   if (!form.value.username || !form.value.password) { error.value = '请输入用户名和密码'; return; }
-  if (form.value.password.length < 6) { error.value = '密码至少6位'; return; }
+  if (form.value.password.length < 8) { error.value = '密码至少8位'; return; }
+  if (!/[a-zA-Z]/.test(form.value.password) || !/[0-9]/.test(form.value.password)) { error.value = '密码需包含字母和数字'; return; }
   loading.value = true;
   error.value = '';
   try {

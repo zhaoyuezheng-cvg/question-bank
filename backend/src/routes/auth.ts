@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
 import { v4 as uuid } from 'uuid';
 import crypto from 'crypto';
+import { auditLog } from '../utils/audit';
 
 export const authRouter = Router();
 
@@ -14,7 +15,9 @@ function base64url(str: string): string {
 
 function createToken(payload: any): string {
   const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const body = base64url(JSON.stringify({ ...payload, iat: Math.floor(Date.now() / 1000) }));
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = iat + 7 * 24 * 3600; // 7天过期
+  const body = base64url(JSON.stringify({ ...payload, iat, exp }));
   const signature = crypto
     .createHmac('sha256', JWT_SECRET)
     .update(`${header}.${body}`)
@@ -30,7 +33,9 @@ function verifyToken(token: string): any {
     .update(`${parts[0]}.${parts[1]}`)
     .digest('base64url');
   if (expected !== parts[2]) return null;
-  return JSON.parse(Buffer.from(parts[1], 'base64url').toString());
+  const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
+  if (payload.exp && Math.floor(Date.now() / 1000) > payload.exp) return null;
+  return payload;
 }
 
 // Auth middleware
@@ -57,7 +62,10 @@ export function authMiddleware(req: Request, res: Response, next: Function) {
     (req as any).userId = decoded.userId;
     (req as any).userRole = decoded.role;
     next();
-  }).catch(() => next());
+  }).catch((err) => {
+    console.error('[Auth Error]', err.message);
+    return res.status(500).json({ success: false, error: '认证服务异常' });
+  });
 }
 
 // POST /api/auth/register - 注册（仅管理员可创建新用户，或首次无用户时创建管理员）
@@ -66,6 +74,12 @@ authRouter.post('/register', async (req: Request, res: Response) => {
     const { username, password, role } = req.body;
     if (!username?.trim() || !password?.trim()) {
       return res.status(400).json({ success: false, error: '用户名和密码不能为空' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ success: false, error: '密码至少8位' });
+    }
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      return res.status(400).json({ success: false, error: '密码需包含字母和数字' });
     }
 
     const userCount = await prisma.user.count();
@@ -109,6 +123,8 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       },
     });
 
+    await auditLog({ userId: user.id, action: 'register', target: 'user', targetId: user.id, detail: `${user.username} (${user.role})`, ip: req.ip });
+
     res.status(201).json({
       success: true,
       data: { id: user.id, username: user.username, role: user.role },
@@ -138,6 +154,8 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     }
 
     const token = createToken({ userId: user.id, username: user.username, role: user.role });
+
+    await auditLog({ userId: user.id, action: 'login', target: 'user', targetId: user.id, ip: req.ip });
 
     res.json({
       success: true,
@@ -210,7 +228,45 @@ authRouter.delete('/users/:id', async (req: Request, res: Response) => {
     }
 
     await prisma.user.delete({ where: { id: req.params.id } });
+    await auditLog({ userId: decoded.userId, action: 'delete', target: 'user', targetId: req.params.id, ip: req.ip });
     res.json({ success: true, message: '已删除' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/auth/audit-logs - 审计日志（仅管理员）
+authRouter.get('/audit-logs', async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(403).json({ success: false, error: '需要管理员权限' });
+    }
+    const decoded = verifyToken(authHeader.slice(7));
+    if (!decoded || decoded.role !== 'admin') {
+      return res.status(403).json({ success: false, error: '需要管理员权限' });
+    }
+
+    const { page = '1', pageSize = '50', action, target } = req.query as Record<string, string>;
+    const pageNum = Math.max(1, parseInt(page));
+    const size = Math.min(200, Math.max(1, parseInt(pageSize)));
+
+    const where: any = {};
+    if (action) where.action = action;
+    if (target) where.target = target;
+
+    const [items, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        skip: (pageNum - 1) * size,
+        take: size,
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { id: true, username: true, role: true } } },
+      }),
+      prisma.auditLog.count({ where }),
+    ]);
+
+    res.json({ success: true, data: { items, total, page: pageNum, pageSize: size, totalPages: Math.ceil(total / size) } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

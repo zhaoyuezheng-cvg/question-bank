@@ -148,5 +148,6 @@ export interface ImportResult {
   total: number;
   success: number;
   failed: number;
+  skipped: number;
   errors: string[];
 }

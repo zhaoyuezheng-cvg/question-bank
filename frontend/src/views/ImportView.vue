@@ -34,7 +34,11 @@ A. 踹（chuài）水   B. 筵（yàn）席
         </div>
         <div style="margin-top: 12px;">
           <strong>方式三：多题批量粘贴</strong>（空行分隔或编号分隔）
-          <span style="margin-left: 8px; font-size: 12px; color: var(--text-muted);">支持 .txt / .docx / .pdf 文件上传</span>
+          <span style="margin-left: 8px; font-size: 12px; color: var(--text-muted);">支持 .txt / .xlsx / .csv 文件上传</span>
+        </div>
+        <div style="margin-top: 12px;">
+          <strong>方式四：Excel 文件上传</strong>
+          <span style="margin-left: 8px; font-size: 12px; color: var(--text-muted);">表头：学科/题型/分类/难度/题干/选项/答案/解析/标签/来源</span>
         </div>
       </div>
     </div>
@@ -63,13 +67,13 @@ A. 踹（chuài）水   B. 筵（yàn）席
 
       <!-- File Upload -->
       <div class="form-group">
-        <label class="form-label">📁 上传文件（可选，支持 .txt / .docx / .pdf）</label>
+        <label class="form-label">📁 上传文件</label>
         <div class="file-upload-area" @click="fileInput?.click()" @drop.prevent="handleDrop" @dragover.prevent>
-          <input ref="fileInput" type="file" accept=".txt,.docx,.pdf" style="display:none;" @change="handleFileSelect" />
+          <input ref="fileInput" type="file" accept=".txt,.xlsx,.xls,.csv" style="display:none;" @change="handleFileSelect" />
           <div v-if="!fileName" class="file-upload-hint">
             <span style="font-size: 32px;">📁</span>
             <p>点击选择文件 或 拖拽文件到此处</p>
-            <p style="font-size: 12px; color: var(--text-muted);">支持 .txt .docx .pdf</p>
+            <p style="font-size: 12px; color: var(--text-muted);">支持 .txt .xlsx .xls .csv</p>
           </div>
           <div v-else class="file-info">
             <span>📄 {{ fileName }}</span>
@@ -89,7 +93,7 @@ A. 踹（chuài）水   B. 筵（yàn）席
       </div>
 
       <div class="btn-group">
-        <button class="btn btn-primary" @click="handleImport" :disabled="importing || !importText.trim()">
+        <button class="btn btn-primary" @click="handleImport" :disabled="canImport">
           {{ importing ? '导入中...' : '🚀 开始导入' }}
         </button>
         <button class="btn" @click="clearAll">清空</button>
@@ -114,6 +118,10 @@ A. 踹（chuài）水   B. 筵（yàn）席
           <div class="result-value">{{ result.failed }}</div>
           <div class="result-label">导入失败</div>
         </div>
+        <div v-if="result.skipped" class="result-item">
+          <div class="result-value">{{ result.skipped }}</div>
+          <div class="result-label">跳过重复</div>
+        </div>
       </div>
 
       <div v-if="result.errors.length" style="margin-top: 16px;">
@@ -131,7 +139,7 @@ A. 踹（chuài）水   B. 筵（yàn）席
 </template>
 
 <script setup lang="ts">
-import { ref, inject } from 'vue';
+import { ref, inject, computed } from 'vue';
 import { SUBJECT_LABELS } from '@/utils/constants';
 import type { ImportResult } from 'shared/src/index';
 
@@ -158,29 +166,29 @@ async function handleDrop(e: DragEvent) {
   await processFile(file);
 }
 
+const isExcelFile = ref(false);
+const excelFile = ref<File | null>(null);
+const canImport = computed(() => importing.value || (!importText.value.trim() && !isExcelFile.value));
+
 async function processFile(file: File) {
   fileName.value = file.name;
   const ext = file.name.split('.').pop()?.toLowerCase();
 
   try {
-    if (ext === 'txt') {
+    if (['xlsx', 'xls', 'csv'].includes(ext || '')) {
+      // Excel/CSV → 上传到服务器处理
+      isExcelFile.value = true;
+      excelFile.value = file;
+      importText.value = '';
+      toast('success', `已选择 ${file.name}，点击「开始导入」上传`);
+    } else if (ext === 'txt') {
+      isExcelFile.value = false;
+      excelFile.value = null;
       const text = await file.text();
       importText.value = text;
       toast('success', `已加载 ${file.name}`);
-    } else if (ext === 'docx') {
-      // Extract text from docx using simple approach
-      const arrayBuffer = await file.arrayBuffer();
-      const text = await extractDocxText(arrayBuffer);
-      importText.value = text;
-      toast('success', `已从 ${file.name} 提取文本`);
-    } else if (ext === 'pdf') {
-      // For PDF, read as text (basic extraction)
-      const arrayBuffer = await file.arrayBuffer();
-      const text = await extractPdfText(arrayBuffer);
-      importText.value = text;
-      toast('success', `已从 ${file.name} 提取文本`);
     } else {
-      toast('error', '不支持的文件格式，请使用 .txt / .docx / .pdf');
+      toast('error', '不支持的文件格式，请使用 .txt / .xlsx / .xls / .csv');
       fileName.value = '';
     }
   } catch (err: any) {
@@ -241,21 +249,44 @@ async function handleImport() {
   result.value = null;
 
   try {
-    const res = await fetch('/api/import/text', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: importText.value,
-        subject: defaultSubject.value,
-        category: defaultCategory.value,
-        subCategory: defaultSubCategory.value,
-      }),
-    });
+    let res: Response;
+
+    if (isExcelFile.value && excelFile.value) {
+      // Excel 文件上传
+      const formData = new FormData();
+      formData.append('file', excelFile.value);
+      formData.append('subject', defaultSubject.value);
+      formData.append('category', defaultCategory.value);
+      formData.append('subCategory', defaultSubCategory.value);
+
+      const token = localStorage.getItem('qb-token');
+      res = await fetch('/api/import/excel', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+    } else {
+      // 文本导入
+      res = await fetch('/api/import/text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: importText.value,
+          subject: defaultSubject.value,
+          category: defaultCategory.value,
+          subCategory: defaultSubCategory.value,
+        }),
+      });
+    }
+
     const json = await res.json();
     if (json.success) {
       result.value = json.data;
       if (json.data.success > 0) {
         toast('success', `成功导入 ${json.data.success} 道题目`);
+      }
+      if (json.data.skipped > 0) {
+        toast('info', `跳过 ${json.data.skipped} 道重复题目`);
       }
     } else {
       toast('error', '导入失败: ' + (json.error || '未知错误'));
@@ -323,7 +354,7 @@ function clearAll() {
 
 .result-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 12px;
 }
 

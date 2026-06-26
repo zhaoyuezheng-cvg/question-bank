@@ -10,6 +10,7 @@
         <router-link :to="`/papers/${paper.id}/edit`" class="btn">✏️ 编辑</router-link>
         <button class="btn" @click="printPreview = !printPreview">{{ printPreview ? '退出预览' : '👁️ 打印预览' }}</button>
         <button class="btn btn-primary" @click="handlePrint">🖨️ 打印</button>
+        <a :href="`/api/papers/${paper.id}/print`" target="_blank" class="btn">📄 导出 PDF</a>
       </div>
     </div>
 

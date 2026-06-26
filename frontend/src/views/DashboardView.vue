@@ -59,6 +59,7 @@ import { ref, onMounted, nextTick } from 'vue';
 import * as echarts from 'echarts';
 import { getSubjectLabel, SUBJECT_COLORS, DIFFICULTY_LABELS, DIFFICULTY_COLORS, QUESTION_TYPE_LABELS } from '@/utils/constants';
 import type { Subject, Difficulty, QuestionType } from 'shared/src/index';
+import { apiGet } from '@/utils/api';
 
 const pieChartRef = ref<HTMLElement>();
 const barChartRef = ref<HTMLElement>();
@@ -150,38 +151,34 @@ function initCharts() {
   }
 }
 
+const loading = ref(true);
+
 onMounted(async () => {
   try {
-    const [qRes, pRes] = await Promise.all([
-      fetch('/api/questions?pageSize=1'),
-      fetch('/api/papers?pageSize=1'),
+    const [qJson, pJson] = await Promise.all([
+      apiGet('/questions?pageSize=1'),
+      apiGet('/papers?pageSize=1'),
     ]);
-    const qJson = await qRes.json();
-    const pJson = await pRes.json();
 
     stats.value[0].value = qJson.data?.total || 0;
     stats.value[1].value = pJson.data?.total || 0;
 
-    try {
-      const psRes = await fetch('/api/practice/stats');
-      const psJson = await psRes.json();
-      if (psJson.success) {
-        stats.value[2].value = psJson.data.totalAnswered;
-        stats.value[3].value = psJson.data.accuracy + '%';
-      }
-    } catch {}
+    const psJson = await apiGet('/practice/stats');
+    if (psJson.success) {
+      stats.value[2].value = psJson.data.totalAnswered;
+      stats.value[3].value = psJson.data.accuracy + '%';
+    }
 
-    try {
-      const statsRes = await fetch('/api/questions/stats/summary');
-      const statsJson = await statsRes.json();
-      if (statsJson.success) {
-        statsData = statsJson.data;
-        await nextTick();
-        initCharts();
-      }
-    } catch {}
+    const statsJson = await apiGet('/questions/stats/summary');
+    if (statsJson.success) {
+      statsData = statsJson.data;
+      await nextTick();
+      initCharts();
+    }
   } catch (e) {
     console.error('Dashboard load error:', e);
+  } finally {
+    loading.value = false;
   }
 });
 </script>
