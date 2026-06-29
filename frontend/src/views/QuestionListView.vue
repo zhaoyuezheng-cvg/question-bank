@@ -230,7 +230,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, inject } from 'vue';
+import { ref, computed, onMounted, onUnmounted, inject } from 'vue';
 import { useQuestionStore } from '@/stores/questionStore';
 import { renderMarkdown } from '@/utils/markdown';
 import { exportQuestionsCSV, exportQuestionsWord, exportQuestionsJSON } from '@/utils/export';
@@ -333,7 +333,6 @@ onMounted(() => {
 });
 
 // Cleanup
-import { onUnmounted } from 'vue';
 onUnmounted(() => { observer?.disconnect(); });
 
 function toggleAll() {
