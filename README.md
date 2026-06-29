@@ -83,16 +83,17 @@
 git clone https://github.com/zhaoyuezheng-cvg/question-bank.git
 cd question-bank
 
-# 安装依赖（workspace 模式，根目录统一安装）
+# 安装依赖（自动执行 prisma generate）
 npm install
 
-# 初始化数据库
-npx prisma generate -w backend
-npx prisma db push -w backend
+# 初始化/同步数据库结构
+npm run db:push
 
 # 可选：导入种子数据
 npm run db:seed
 ```
+
+> **注意**：每次 `git pull` 拉取新代码后，如果 `schema.prisma` 有变更，需重新运行 `npm run db:push` 同步数据库。
 
 ### 启动
 
