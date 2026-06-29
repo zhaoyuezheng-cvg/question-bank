@@ -5,7 +5,10 @@
         <span class="title-icon">📄</span>
         试卷管理
       </h1>
-      <router-link to="/papers/new" class="btn btn-primary">➕ 新建试卷</router-link>
+      <div class="btn-group">
+        <button class="btn" @click="showAutoModal = true">🤖 自动组卷</button>
+        <router-link to="/papers/new" class="btn btn-primary">➕ 新建试卷</router-link>
+      </div>
     </div>
 
     <div class="card" style="padding: 0; overflow: hidden;">
@@ -61,14 +64,60 @@
       </table>
     </div>
   </div>
+    <!-- 自动组卷 Modal -->
+    <div v-if="showAutoModal" class="modal-overlay" @click.self="showAutoModal = false">
+      <div class="modal">
+        <div class="modal-title">🤖 自动组卷</div>
+        <div class="form-group">
+          <label class="form-label">学科</label>
+          <select class="form-select" v-model="autoForm.subject">
+            <option v-for="(label, key) in SUBJECT_LABELS" :key="key" :value="key">{{ label }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">试卷名称</label>
+          <input class="form-input" v-model="autoForm.title" placeholder="留空自动生成" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">总分</label>
+          <input class="form-input" type="number" v-model.number="autoForm.totalScore" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">组卷规则</label>
+          <div v-for="(rule, i) in autoForm.rules" :key="i" style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+            <select class="form-select" v-model="rule.type" style="flex: 1;">
+              <option value="">任意题型</option>
+              <option v-for="(label, key) in QUESTION_TYPE_LABELS" :key="key" :value="key">{{ label }}</option>
+            </select>
+            <select class="form-select" v-model="rule.difficulty" style="width: 100px;">
+              <option value="0">任意难度</option>
+              <option v-for="n in 5" :key="n" :value="n">{{ DIFFICULTY_LABELS[n as Difficulty] }}</option>
+            </select>
+            <input class="form-input" type="number" v-model.number="rule.count" min="1" max="50" style="width: 70px;" placeholder="题数" />
+            <span style="font-size: 12px; color: var(--text-muted);">题</span>
+            <button class="btn btn-sm btn-ghost" style="color: var(--danger);" @click="autoForm.rules.splice(i, 1)">✕</button>
+          </div>
+          <button class="btn btn-sm" @click="autoForm.rules.push({ type: '', difficulty: 0, count: 5 })">+ 添加规则</button>
+        </div>
+        <div class="btn-group" style="margin-top: 20px; justify-content: flex-end;">
+          <button class="btn" @click="showAutoModal = false">取消</button>
+          <button class="btn btn-primary" @click="handleAutoGenerate" :disabled="autoGenerating">{{ autoGenerating ? '生成中...' : '🚀 生成试卷' }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, inject } from 'vue';
+import { ref, onMounted, inject } from 'vue';
+import { useRouter } from 'vue-router';
 import { usePaperStore } from '@/stores/paperStore';
-import { getSubjectLabel } from '@/utils/constants';
+import { getSubjectLabel, SUBJECT_LABELS, QUESTION_TYPE_LABELS, DIFFICULTY_LABELS } from '@/utils/constants';
+import type { Difficulty } from 'shared/src/index';
+import { apiPost } from '@/utils/api';
 
 const store = usePaperStore();
+const router = useRouter();
 const toast = inject<(type: string, msg: string) => void>('toast')!;
 const confirmFn = inject<(opts: any) => Promise<boolean>>('confirm')!;
 
@@ -81,6 +130,44 @@ async function handleDelete(id: string) {
   if (!ok) return;
   await store.deletePaper(id);
   toast('success', '试卷已删除');
+}
+
+const showAutoModal = ref(false);
+const autoGenerating = ref(false);
+const autoForm = ref({
+  subject: 'chinese',
+  title: '',
+  totalScore: 100,
+  rules: [
+    { type: 'choice', difficulty: 0, count: 10 },
+    { type: 'fill_blank', difficulty: 0, count: 5 },
+    { type: 'short_answer', difficulty: 0, count: 3 },
+  ],
+});
+
+async function handleAutoGenerate() {
+  if (!autoForm.value.rules.length) { toast('error', '请添加组卷规则'); return; }
+  autoGenerating.value = true;
+  try {
+    const json = await apiPost('/papers/auto-generate', {
+      subject: autoForm.value.subject,
+      title: autoForm.value.title || undefined,
+      totalScore: autoForm.value.totalScore,
+      rules: autoForm.value.rules.filter(r => r.count > 0),
+    });
+    if (json.success) {
+      toast('success', `已生成「${json.data.title}」，共 ${json.data.questionCount} 题`);
+      showAutoModal.value = false;
+      store.fetchPapers();
+      router.push(`/papers/${json.data.paperId}`);
+    } else {
+      toast('error', json.error || '组卷失败');
+    }
+  } catch {
+    toast('error', '组卷失败');
+  } finally {
+    autoGenerating.value = false;
+  }
 }
 
 onMounted(() => store.fetchPapers());

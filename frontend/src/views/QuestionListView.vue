@@ -93,7 +93,8 @@
         <router-link to="/questions/new" class="btn btn-primary" style="margin-top: 16px;">➕ 新建题目</router-link>
       </div>
 
-      <table v-else class="data-table">
+      <!-- Desktop table -->
+      <table v-else class="data-table desktop-only">
         <thead>
           <tr>
             <th style="width: 44px;">
@@ -143,6 +144,32 @@
           </tr>
         </tbody>
       </table>
+
+      <!-- Mobile card list -->
+      <div v-else class="mobile-card-list">
+        <div v-for="q in store.questions" :key="q.id" class="mobile-card">
+          <div class="mobile-card-header">
+            <input type="checkbox" :value="q.id" v-model="selectedIds" style="margin-right: 8px;" />
+            <span class="tag" :style="{ background: SUBJECT_COLORS[q.subject] + '18', color: SUBJECT_COLORS[q.subject] }">
+              {{ getSubjectLabel(q.subject) }}
+            </span>
+            <span class="diff-badge" :style="{ background: DIFFICULTY_COLORS[q.difficulty] }">
+              {{ getDifficultyLabel(q.difficulty) }}
+            </span>
+            <span class="tag">{{ q.category }}</span>
+            <span style="flex:1;"></span>
+            <span style="font-size: 12px; color: var(--text-muted);">{{ getTypeLabel(q.type) }}</span>
+          </div>
+          <QuestionPopover :question="q">
+            <div class="q-preview" v-html="renderMarkdown(q.content.slice(0, 120))"></div>
+          </QuestionPopover>
+          <div class="mobile-card-actions">
+            <router-link :to="`/questions/${q.id}/edit`" class="btn btn-sm btn-ghost">✏️ 编辑</router-link>
+            <router-link :to="`/questions/new?clone=${q.id}`" class="btn btn-sm btn-ghost">📋 复制</router-link>
+            <button class="btn btn-sm btn-ghost" style="color: var(--danger);" @click="handleDelete(q)">🗑️ 删除</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Pagination -->
@@ -188,6 +215,7 @@ import { ref, computed, onMounted, inject } from 'vue';
 import { useQuestionStore } from '@/stores/questionStore';
 import { renderMarkdown } from '@/utils/markdown';
 import { exportQuestionsCSV, exportQuestionsWord, exportQuestionsJSON } from '@/utils/export';
+import { apiGet, apiPost, apiDelete } from '@/utils/api';
 import QuestionPopover from '@/components/QuestionPopover.vue';
 import {
   SUBJECT_LABELS, SUBJECT_COLORS, QUESTION_TYPE_LABELS,
@@ -256,11 +284,7 @@ async function handleDelete(q: any) {
   toast('success', '已删除', 5000, {
     label: '↩ 撤销',
     fn: async () => {
-      await fetch('/api/questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(deleted),
-      });
+      await apiPost('/questions', deleted);
       store.fetchQuestions();
       toast('success', '已恢复');
     },
@@ -287,12 +311,7 @@ async function handleBatchUpdate() {
   }
 
   try {
-    const res = await fetch('/api/questions/batch-update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: selectedIds.value, updates }),
-    });
-    const json = await res.json();
+    const json = await apiPost('/questions/batch-update', { ids: selectedIds.value, updates });
     if (json.success) {
       toast('success', `已更新 ${json.data.updated} 道题目`);
       showBatchModal.value = false;
@@ -313,8 +332,7 @@ async function handleExport(format: 'csv' | 'word') {
     if (filters.value.subject) params.set('subject', filters.value.subject);
     if (filters.value.type) params.set('type', filters.value.type);
     if (filters.value.keyword) params.set('keyword', filters.value.keyword);
-    const res = await fetch(`/api/questions?${params}`);
-    const json = await res.json();
+    const json = await apiGet(`/questions?${params}`);
     if (json.success) {
       const items = json.data.items;
       if (format === 'csv') exportQuestionsCSV(items);
@@ -408,4 +426,35 @@ onMounted(() => { store.fetchQuestions(); loadRecent(); });
   border: 1px solid transparent;
 }
 .recent-tag:hover { border-color: var(--primary); background: var(--primary-100); }
+
+/* Mobile card layout */
+.mobile-card-list { display: none; }
+.desktop-only { display: table; }
+
+@media (max-width: 768px) {
+  .desktop-only { display: none !important; }
+  .mobile-card-list { display: flex; flex-direction: column; gap: 12px; }
+  .mobile-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-xs);
+  }
+  .mobile-card-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .mobile-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-light);
+  }
+  .mobile-card-actions .btn { flex: 1; }
+}
 </style>

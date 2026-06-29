@@ -60,6 +60,7 @@ import { ref, onMounted } from 'vue';
 import { renderMarkdown } from '@/utils/markdown';
 import { getSubjectLabel, SUBJECT_COLORS } from '@/utils/constants';
 import type { Subject } from 'shared/src/index';
+import { apiGet, apiPut, apiDelete } from '@/utils/api';
 
 const items = ref<any[]>([]);
 const loading = ref(false);
@@ -72,23 +73,18 @@ async function load() {
   if (filter.value === 'resolved') params.set('isResolved', 'true');
   params.set('pageSize', '50');
 
-  const res = await fetch(`/api/practice/errors?${params}`);
-  const json = await res.json();
+  const json = await apiGet(`/practice/errors?${params}`);
   if (json.success) items.value = json.data.items;
   loading.value = false;
 }
 
 async function toggleResolved(item: any) {
-  await fetch(`/api/practice/errors/${item.id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ isResolved: !item.isResolved }),
-  });
+  await apiPut(`/practice/errors/${item.id}`, { isResolved: !item.isResolved });
   await load();
 }
 
 async function remove(id: string) {
-  await fetch(`/api/practice/errors/${id}`, { method: 'DELETE' });
+  await apiDelete(`/practice/errors/${id}`);
   await load();
 }
 

@@ -180,6 +180,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue';
+import { apiGet, apiPost, apiDelete } from '@/utils/api';
 
 const toast = inject<(type: string, msg: string) => void>('toast')!;
 
@@ -214,26 +215,22 @@ async function loadWords() {
   if (filters.value.unit) params.set('unit', filters.value.unit);
   if (filters.value.mastery) params.set('mastery', filters.value.mastery);
   if (filters.value.keyword) params.set('keyword', filters.value.keyword);
-  const res = await fetch(`/api/words?${params}`);
-  const json = await res.json();
+  const json = await apiGet(`/words?${params}`);
   if (json.success) words.value = json.data.items;
 }
 
 async function loadStats() {
-  const res = await fetch('/api/words/stats');
-  const json = await res.json();
+  const json = await apiGet('/words/stats');
   if (json.success) stats.value = json.data;
 }
 
 async function loadUnits() {
-  const res = await fetch('/api/words/units');
-  const json = await res.json();
+  const json = await apiGet('/words/units');
   if (json.success) units.value = json.data;
 }
 
 async function loadDue() {
-  const res = await fetch('/api/words/due?limit=30');
-  const json = await res.json();
+  const json = await apiGet('/words/due?limit=30');
   if (json.success) {
     dueWords.value = json.data;
     reviewIdx.value = 0;
@@ -243,10 +240,7 @@ async function loadDue() {
 
 async function addWord() {
   if (!newWord.value.word || !newWord.value.meaning) { toast('error', '单词和释义不能为空'); return; }
-  await fetch('/api/words', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(newWord.value),
-  });
+  await apiPost('/words', newWord.value);
   showAdd.value = false;
   newWord.value = { word: '', phonetic: '', meaning: '', partOfSpeech: '', example: '', unit: '' };
   toast('success', '已添加');
@@ -254,16 +248,13 @@ async function addWord() {
 }
 
 async function deleteWord(id: string) {
-  await fetch(`/api/words/${id}`, { method: 'DELETE' });
+  await apiDelete(`/words/${id}`);
   loadWords(); loadStats();
 }
 
 async function rateWord(quality: number) {
   const w = dueWords.value[reviewIdx.value];
-  await fetch(`/api/words/${w.id}/review`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ quality }),
-  });
+  await apiPost(`/words/${w.id}/review`, { quality });
   if (reviewIdx.value < dueWords.value.length - 1) {
     reviewIdx.value++;
     showReviewAnswer.value = false;
@@ -331,11 +322,7 @@ async function handleImport() {
       });
     }
 
-    const res = await fetch('/api/words/batch', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ words: wordList, unit: importUnit.value || undefined }),
-    });
-    const json = await res.json();
+    const json = await apiPost('/words/batch', { words: wordList, unit: importUnit.value || undefined });
     if (json.success) {
       toast('success', `成功导入 ${json.data.success} 个单词`);
       showImport.value = false;

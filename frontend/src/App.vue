@@ -137,6 +137,12 @@
               <span v-if="!sidebarCollapsed">数据分析</span>
             </router-link>
           </li>
+          <li>
+            <router-link to="/report" @click="closeMobile" :title="sidebarCollapsed ? '学习报告' : ''">
+              <span class="nav-icon">📋</span>
+              <span v-if="!sidebarCollapsed">学习报告</span>
+            </router-link>
+          </li>
         </ul>
       </div>
 

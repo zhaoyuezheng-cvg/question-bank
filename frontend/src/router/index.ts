@@ -145,6 +145,12 @@ const routes = [
     component: () => import('@/views/StatsView.vue'),
     meta: { title: '数据分析' },
   },
+  {
+    path: '/report',
+    name: 'report',
+    component: () => import('@/views/StudyReportView.vue'),
+    meta: { title: '学习报告' },
+  },
 ];
 
 const router = createRouter({
@@ -152,8 +158,37 @@ const router = createRouter({
   routes,
 });
 
+// 全局 loading bar
+let loadingBarEl: HTMLDivElement | null = null;
+let loadingTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showLoadingBar() {
+  if (!loadingBarEl) {
+    loadingBarEl = document.createElement('div');
+    loadingBarEl.id = 'global-loading-bar';
+    loadingBarEl.style.cssText = 'position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,#6366f1,#818cf8);z-index:99999;transition:width 0.3s ease;border-radius:0 2px 2px 0;';
+    document.body.appendChild(loadingBarEl);
+  }
+  loadingBarEl.style.width = '0%';
+  loadingBarEl.style.opacity = '1';
+  // Animate to 70%
+  loadingTimer = setTimeout(() => { if (loadingBarEl) loadingBarEl.style.width = '70%'; }, 50);
+}
+
+function hideLoadingBar() {
+  if (loadingTimer) { clearTimeout(loadingTimer); loadingTimer = null; }
+  if (loadingBarEl) {
+    loadingBarEl.style.width = '100%';
+    setTimeout(() => {
+      if (loadingBarEl) loadingBarEl.style.opacity = '0';
+      setTimeout(() => { if (loadingBarEl) loadingBarEl.style.width = '0%'; }, 300);
+    }, 200);
+  }
+}
+
 // 路由守卫：未登录跳转登录页
 router.beforeEach((to, _from, next) => {
+  showLoadingBar();
   const token = localStorage.getItem('qb-token');
   const isPublic = to.meta.public === true;
 
@@ -167,12 +202,13 @@ router.beforeEach((to, _from, next) => {
   }
 });
 
-// Update page title
+// Update page title + hide loading bar
 router.afterEach((to) => {
   const title = to.meta.title as string;
   if (title) {
     document.title = `${title} - 私人题库`;
   }
+  hideLoadingBar();
 });
 
 export default router;

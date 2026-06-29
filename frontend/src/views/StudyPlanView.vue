@@ -123,6 +123,7 @@
 import { ref, computed, onMounted, inject } from 'vue';
 import { useRouter } from 'vue-router';
 import { SUBJECT_LABELS, SUBJECT_COLORS, getSubjectLabel } from '@/utils/constants';
+import { apiGet, apiPost } from '@/utils/api';
 
 const router = useRouter();
 const toast = inject<(type: string, msg: string) => void>('toast')!;
@@ -164,14 +165,12 @@ const calendarDays = computed(() => {
 });
 
 async function loadPlans() {
-  const res = await fetch(`/api/study/plan?date=${today}`);
-  const json = await res.json();
+  const json = await apiGet(`/study/plan?date=${today}`);
   if (json.success) plans.value = json.data;
 }
 
 async function loadCheckins() {
-  const res = await fetch('/api/study/checkin');
-  const json = await res.json();
+  const json = await apiGet('/study/checkin');
   if (json.success) {
     checkins.value = json.data;
     streak.value = json.data[0]?.streak || 0;
@@ -179,28 +178,16 @@ async function loadCheckins() {
 }
 
 async function addPlan() {
-  await fetch('/api/study/plan', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ date: today, ...newPlan.value }),
-  });
+  await apiPost('/study/plan', { date: today, ...newPlan.value });
   showAddPlan.value = false;
   loadPlans();
 }
 
 async function markDone(p: any) {
-  await fetch(`/api/study/plan/${p.id}/done`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ doneCount: p.targetCount }),
-  });
+  await apiPost(`/study/plan/${p.id}/done`, { doneCount: p.targetCount });
   // Also checkin
   const totalDone = plans.value.reduce((s, pl) => s + (pl.status === 'done' ? pl.targetCount : 0), 0) + p.targetCount;
-  await fetch('/api/study/checkin', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ date: today, totalDone }),
-  });
+  await apiPost('/study/checkin', { date: today, totalDone });
   toast('success', '🎉 今日计划已完成！');
   loadPlans();
   loadCheckins();
@@ -208,17 +195,12 @@ async function markDone(p: any) {
 
 async function deletePlan(id: string) {
   // Simple delete via update status
-  await fetch(`/api/study/plan/${id}/done`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ doneCount: 0 }),
-  });
+  await apiPost(`/study/plan/${id}/done`, { doneCount: 0 });
   loadPlans();
 }
 
 async function loadWeakPoints() {
-  const res = await fetch('/api/study/weak-points');
-  const json = await res.json();
+  const json = await apiGet('/study/weak-points');
   if (json.success) weakPoints.value = json.data;
 }
 

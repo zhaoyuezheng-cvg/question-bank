@@ -98,6 +98,13 @@
             <button class="btn" @click="addTag">添加</button>
           </div>
         </div>
+
+        <!-- 个人笔记 -->
+        <div class="form-group">
+          <label class="form-label">📝 个人笔记</label>
+          <textarea class="form-textarea" v-model="noteContent" rows="3" placeholder="记录你的理解、易错点、解题思路..." style="font-size: 13px;"></textarea>
+          <button v-if="isEdit" class="btn btn-sm" style="margin-top: 6px;" @click="saveNote">💾 保存笔记</button>
+        </div>
       </div>
 
       <!-- Right: Preview -->
@@ -130,6 +137,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useQuestionStore } from '@/stores/questionStore';
 import { renderMarkdown } from '@/utils/markdown';
 import { useAutoSave } from '@/composables/useAutoSave';
+import { apiUpload, apiGet, apiPut } from '@/utils/api';
 import {
   SUBJECT_LABELS, QUESTION_TYPE_LABELS, DIFFICULTY_LABELS,
   getSubTypesForSubject, getSubTypeLabel,
@@ -140,6 +148,7 @@ const route = useRoute();
 const router = useRouter();
 const store = useQuestionStore();
 const toast = inject<(type: string, msg: string, duration?: number, action?: any) => void>('toast')!;
+const noteContent = ref('');
 
 const isEdit = computed(() => !!route.params.id);
 const saving = ref(false);
@@ -203,8 +212,7 @@ async function handleImageUpload(e: Event) {
   formData.append('image', file);
 
   try {
-    const res = await fetch('/api/upload', { method: 'POST', body: formData });
-    const json = await res.json();
+    const json = await apiUpload('/upload', formData);
     if (json.success) {
       const md = `![图片](${json.data.url})`;
       if (uploadTarget === 'content') {
@@ -257,7 +265,21 @@ async function handleSave() {
   }
 }
 
+// 加载笔记
+async function loadNote() {
+  if (!isEdit.value) return;
+  const json = await apiGet(`/practice/notes/${route.params.id}`);
+  if (json.data?.content) noteContent.value = json.data.content;
+}
+
+async function saveNote() {
+  if (!noteContent.value.trim()) { toast('error', '笔记内容不能为空'); return; }
+  await apiPut(`/practice/notes/${route.params.id}`, { content: noteContent.value });
+  toast('success', '笔记已保存');
+}
+
 onMounted(async () => {
+  loadNote();
   // Check for clone mode
   const cloneId = route.query.clone as string;
   if (cloneId) {

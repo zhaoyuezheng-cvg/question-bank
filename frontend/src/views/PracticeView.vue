@@ -45,6 +45,15 @@
             <span>🎯 只练错题 / 未掌握题目</span>
           </label>
         </div>
+        <div class="form-group">
+          <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" v-model="adaptiveMode" />
+            <span>🧠 自适应难度（根据答题表现自动调整）</span>
+          </label>
+          <div v-if="adaptiveMode && recommendInfo" style="font-size: 12px; color: var(--text-secondary); margin-top: 4px; padding-left: 24px;">
+            推荐难度：<strong>{{ getDifficultyLabel(recommendInfo.recommended as Difficulty) }}</strong> — {{ recommendInfo.reason }}
+          </div>
+        </div>
         <button class="btn btn-primary btn-lg" @click="startPractice" :disabled="loading" style="width: 100%; margin-top: 8px;">
           {{ loading ? '加载中...' : '🚀 开始练习' }}
         </button>
@@ -147,6 +156,15 @@
               {{ isFav(currentQ.id) ? '❤️ 已收藏' : '🤍 收藏' }}
             </button>
             <button class="btn btn-sm" @click="addToFlashcard(currentQ.id)">🃏 加入闪卡</button>
+            <button class="btn btn-sm" @click="toggleNote()">📝 笔记</button>
+          </div>
+          <!-- 笔记输入 -->
+          <div v-if="showNote" style="margin-top: 12px;">
+            <textarea class="form-textarea" v-model="noteContent" rows="3" placeholder="记录你的理解、易错点、解题思路..." style="font-size: 13px;"></textarea>
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+              <button class="btn btn-sm btn-primary" @click="saveNote(currentQ.id)">💾 保存笔记</button>
+              <button v-if="noteContent" class="btn btn-sm btn-ghost" style="color: var(--danger);" @click="deleteNote(currentQ.id)">删除</button>
+            </div>
           </div>
         </div>
       </div>
@@ -220,12 +238,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, inject } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, inject, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import * as echarts from 'echarts';
 import { renderMarkdown } from '@/utils/markdown';
 import { SUBJECT_LABELS, SUBJECT_COLORS, DIFFICULTY_COLORS, getSubjectLabel, getDifficultyLabel, getSubTypesForSubject, getSubTypeLabel, READING_SUB_TYPES } from '@/utils/constants';
 import type { Subject, Difficulty } from 'shared/src/index';
+import { apiGet, apiPost, apiPut, apiDelete } from '@/utils/api';
 
 const started = ref(false);
 const history = ref<{ date: string; total: number; correct: number; accuracy: number }[]>([]);
@@ -244,6 +263,10 @@ const favoriteIds = ref<Set<string>>(new Set());
 const showReview = ref(false);
 const reviewResults = ref<Record<number, { isCorrect: boolean; userAnswer: string }>>({});
 const errorOnly = ref(false);
+const adaptiveMode = ref(false);
+const showNote = ref(false);
+const noteContent = ref('');
+const recommendInfo = ref<{ recommended: number; reason: string; accuracy: number | null } | null>(null);
 const availableSubTypes = computed(() => config.value.subject ? getSubTypesForSubject(config.value.subject) : Object.keys(READING_SUB_TYPES));
 const paused = ref(false);
 const shuffledOptions = ref<Record<number, string[]>>({});
@@ -252,6 +275,19 @@ let timer: any = null;
 
 const route = useRoute();
 const config = ref({ subject: '', count: 10, category: '', subCategory: '', subType: '' });
+
+// 加载推荐难度
+async function loadRecommendation() {
+  if (!adaptiveMode.value) { recommendInfo.value = null; return; }
+  try {
+    const params = config.value.subject ? `?subject=${config.value.subject}` : '';
+    const json = await apiGet(`/practice/recommended-difficulty${params}`);
+    if (json.success) recommendInfo.value = json.data;
+  } catch {}
+}
+
+watch(adaptiveMode, (v) => { if (v) loadRecommendation(); });
+watch(() => config.value.subject, () => { if (adaptiveMode.value) loadRecommendation(); });
 
 const currentQ = computed(() => questions.value[currentIndex.value]);
 const accuracy = computed(() => {
@@ -288,16 +324,11 @@ async function startPractice() {
   try {
     const body: any = { subject: config.value.subject || undefined, count: config.value.count, category: config.value.category || undefined, subCategory: config.value.subCategory || undefined, subType: config.value.subType || undefined };
     if (errorOnly.value) body.errorOnly = true;
-    const res = await fetch('/api/practice/random-paper', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const json = await res.json();
+    if (adaptiveMode.value) body.adaptive = true;
+    const json = await apiPost('/practice/random-paper', body);
     if (!json.success) { toast('error', json.error || '没有符合条件的题目'); return; }
 
-    const paperRes = await fetch(`/api/papers/${json.data.paperId}`);
-    const paperJson = await paperRes.json();
+    const paperJson = await apiGet(`/papers/${json.data.paperId}`);
     if (paperJson.success) {
       questions.value = paperJson.data.questions;
       started.value = true;
@@ -330,16 +361,11 @@ function selectOption(letter: string) {
 async function submitAnswer() {
   if (!currentQ.value || !userAnswer.value) return;
 
-  const res = await fetch('/api/practice/submit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      questionId: currentQ.value.id,
-      userAnswer: userAnswer.value,
-      timeSpent: 0,
-    }),
+  const json = await apiPost('/practice/submit', {
+    questionId: currentQ.value.id,
+    userAnswer: userAnswer.value,
+    timeSpent: 0,
   });
-  const json = await res.json();
   if (json.success) {
     isCorrect.value = json.data.isCorrect;
     if (isCorrect.value) correctCount.value++;
@@ -373,25 +399,39 @@ function isFav(qId: string) {
 
 async function toggleFavorite(qId: string) {
   if (favoriteIds.value.has(qId)) {
-    await fetch(`/api/practice/favorites/${qId}`, { method: 'DELETE' });
+    await apiDelete(`/practice/favorites/${qId}`);
     favoriteIds.value.delete(qId);
   } else {
-    await fetch('/api/practice/favorites', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ questionId: qId }),
-    });
+    await apiPost('/practice/favorites', { questionId: qId });
     favoriteIds.value.add(qId);
   }
 }
 
 async function addToFlashcard(questionId: string) {
-  await fetch('/api/flashcards/add', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ questionId }),
-  });
+  await apiPost('/flashcards/add', { questionId });
   toast('success', '已加入闪卡');
+}
+
+async function toggleNote() {
+  showNote.value = !showNote.value;
+  if (showNote.value && currentQ.value) {
+    // 加载已有笔记
+    const json = await apiGet(`/practice/notes/${currentQ.value.id}`);
+    noteContent.value = json.data?.content || '';
+  }
+}
+
+async function saveNote(questionId: string) {
+  if (!noteContent.value.trim()) { toast('error', '笔记内容不能为空'); return; }
+  await apiPut(`/practice/notes/${questionId}`, { content: noteContent.value });
+  toast('success', '笔记已保存');
+}
+
+async function deleteNote(questionId: string) {
+  await apiDelete(`/practice/notes/${questionId}`);
+  noteContent.value = '';
+  showNote.value = false;
+  toast('success', '笔记已删除');
 }
 
 // Keyboard shortcuts
@@ -432,8 +472,7 @@ function reset() {
 
 async function loadHistory() {
   try {
-    const res = await fetch('/api/practice/history?days=14');
-    const json = await res.json();
+    const json = await apiGet('/practice/history?days=14');
     if (json.success) {
       history.value = json.data;
       await nextTick();
@@ -442,10 +481,13 @@ async function loadHistory() {
   } catch {}
 }
 
+let historyChart: echarts.ECharts | null = null;
+let historyResizeHandler: (() => void) | null = null;
+
 function initHistoryChart() {
   if (!historyChartRef.value || !history.value.length) return;
-  const chart = echarts.init(historyChartRef.value);
-  chart.setOption({
+  historyChart = echarts.init(historyChartRef.value);
+  historyChart.setOption({
     tooltip: { trigger: 'axis' },
     legend: { data: ['答题数', '正确率'], bottom: 0 },
     xAxis: { type: 'category', data: history.value.map(h => h.date.slice(5)), axisLabel: { fontSize: 11 } },
@@ -474,7 +516,8 @@ function initHistoryChart() {
     ],
     grid: { left: 50, right: 50, top: 20, bottom: 40 },
   });
-  window.addEventListener('resize', () => chart.resize());
+  historyResizeHandler = () => historyChart?.resize();
+  window.addEventListener('resize', historyResizeHandler);
 }
 
 function handleBeforeUnload(e: BeforeUnloadEvent) {
@@ -485,7 +528,14 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 }
 
 onMounted(() => { loadHistory(); window.addEventListener('keydown', handleKeydown); window.addEventListener('beforeunload', handleBeforeUnload); });
-onUnmounted(() => { if (timer) clearInterval(timer); window.removeEventListener('keydown', handleKeydown); window.removeEventListener('beforeunload', handleBeforeUnload); });
+onUnmounted(() => {
+  if (timer) clearInterval(timer);
+  window.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener('beforeunload', handleBeforeUnload);
+  if (historyResizeHandler) window.removeEventListener('resize', historyResizeHandler);
+  historyChart?.dispose();
+  historyChart = null;
+});
 </script>
 
 <style scoped>

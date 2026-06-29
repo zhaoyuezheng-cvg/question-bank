@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
 import { v4 as uuid } from 'uuid';
+import { checkAnswer } from '../utils/answer-check';
 
 export const examRouter = Router();
 
@@ -79,16 +80,8 @@ examRouter.post('/:id/submit', async (req: Request, res: Response) => {
 
     for (const pq of paper.questions) {
       const userAnswer = answers?.[pq.question.id] || '';
-      const correctAnswer = pq.question.answer.trim().toUpperCase();
-      const user = userAnswer.trim().toUpperCase();
-      let isCorrect = false;
-
-      if (['choice', 'multi_choice', 'true_false'].includes(pq.question.type)) {
-        isCorrect = user === correctAnswer;
-      } else {
-        const keywords = correctAnswer.split(/[,，、\n]/).map(s => s.trim()).filter(Boolean);
-        isCorrect = keywords.length > 0 && keywords.some(k => user.includes(k));
-      }
+      // 使用统一的答题判断逻辑
+      const isCorrect = checkAnswer(userAnswer, pq.question.answer, pq.question.type);
 
       if (isCorrect) {
         correctCount++;
@@ -110,11 +103,19 @@ examRouter.post('/:id/submit', async (req: Request, res: Response) => {
     // Auto-add wrong answers to error book
     for (const r of results) {
       if (!r.isCorrect && r.userAnswer) {
-        await prisma.errorBook.upsert({
-          where: { id: r.questionId + '_error' },
-          update: { wrongAnswer: r.userAnswer, updatedAt: now, isResolved: false },
-          create: { id: uuid(), questionId: r.questionId, wrongAnswer: r.userAnswer, createdAt: now, updatedAt: now },
-        }).catch(() => {});
+        try {
+          const existingError = await prisma.errorBook.findFirst({ where: { questionId: r.questionId, userId: null } });
+          if (existingError) {
+            await prisma.errorBook.update({
+              where: { id: existingError.id },
+              data: { wrongAnswer: r.userAnswer, updatedAt: now, isResolved: false },
+            });
+          } else {
+            await prisma.errorBook.create({
+              data: { id: uuid(), questionId: r.questionId, wrongAnswer: r.userAnswer, createdAt: now, updatedAt: now },
+            });
+          }
+        } catch {}
       }
     }
 

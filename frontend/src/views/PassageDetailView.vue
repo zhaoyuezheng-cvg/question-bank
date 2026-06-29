@@ -97,6 +97,7 @@ import {
   SUBJECT_COLORS, DIFFICULTY_COLORS,
   getSubjectLabel, getTypeLabel, getDifficultyLabel, getSubTypeLabel,
 } from '@/utils/constants';
+import { apiGet } from '@/utils/api';
 
 const route = useRoute();
 const router = useRouter();
@@ -117,8 +118,7 @@ function formatTime(s: number) {
 }
 
 async function loadData() {
-  const res = await fetch(`/api/passages/${route.params.id}`);
-  const json = await res.json();
+  const json = await apiGet(`/passages/${route.params.id}`);
   if (json.success) passage.value = json.data;
 }
 

@@ -55,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import * as echarts from 'echarts';
 import { getSubjectLabel, SUBJECT_COLORS, DIFFICULTY_LABELS, DIFFICULTY_COLORS, QUESTION_TYPE_LABELS } from '@/utils/constants';
 import type { Subject, Difficulty, QuestionType } from 'shared/src/index';
@@ -73,6 +73,8 @@ const stats = ref([
 ]);
 
 let statsData: any = null;
+const chartInstances: echarts.ECharts[] = [];
+let resizeHandler: (() => void) | null = null;
 
 function initCharts() {
   if (!statsData) return;
@@ -80,6 +82,7 @@ function initCharts() {
   // Pie chart - Subject distribution
   if (pieChartRef.value) {
     const pie = echarts.init(pieChartRef.value);
+    chartInstances.push(pie);
     const pieData = statsData.bySubject.map((s: any) => ({
       name: getSubjectLabel(s.subject as Subject),
       value: s._count,
@@ -96,12 +99,12 @@ function initCharts() {
         emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.2)' } },
       }],
     });
-    window.addEventListener('resize', () => pie.resize());
   }
 
   // Bar chart - Difficulty distribution
   if (barChartRef.value) {
     const bar = echarts.init(barChartRef.value);
+    chartInstances.push(bar);
     const diffData = [1, 2, 3, 4, 5].map(d => {
       const found = statsData.byDifficulty.find((x: any) => x.difficulty === d);
       return { name: DIFFICULTY_LABELS[d as Difficulty], value: found?._count || 0 };
@@ -120,12 +123,12 @@ function initCharts() {
       }],
       grid: { left: 40, right: 16, top: 16, bottom: 30 },
     });
-    window.addEventListener('resize', () => bar.resize());
   }
 
   // Type chart
   if (typeChartRef.value) {
     const typeChart = echarts.init(typeChartRef.value);
+    chartInstances.push(typeChart);
     const typeData = statsData.byType.map((t: any) => ({
       name: QUESTION_TYPE_LABELS[t.type as QuestionType] || t.type,
       value: t._count,
@@ -147,11 +150,19 @@ function initCharts() {
       }],
       grid: { left: 40, right: 16, top: 16, bottom: 30 },
     });
-    window.addEventListener('resize', () => typeChart.resize());
   }
+
+  // 统一 resize handler
+  resizeHandler = () => chartInstances.forEach(c => c.resize());
+  window.addEventListener('resize', resizeHandler);
 }
 
 const loading = ref(true);
+
+onUnmounted(() => {
+  chartInstances.forEach(c => c.dispose());
+  if (resizeHandler) window.removeEventListener('resize', resizeHandler);
+});
 
 onMounted(async () => {
   try {

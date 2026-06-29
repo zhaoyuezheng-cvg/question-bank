@@ -125,6 +125,7 @@ import {
   SUBJECT_LABELS, SUBJECT_COLORS, DIFFICULTY_COLORS,
   getSubjectLabel, getSubTypeLabel,
 } from '@/utils/constants';
+import { apiGet, apiPost, apiPut, apiDelete } from '@/utils/api';
 
 const toast = inject<(type: string, msg: string) => void>('toast')!;
 
@@ -143,16 +144,14 @@ async function loadData() {
   const params = new URLSearchParams({ pageSize: '100' });
   if (filters.value.subject) params.set('subject', filters.value.subject);
   if (filters.value.isResolved) params.set('isResolved', filters.value.isResolved);
-  const res = await fetch(`/api/practice/errors?${params}`);
-  const json = await res.json();
+  const json = await apiGet(`/practice/errors?${params}`);
   if (json.success) errors.value = json.data.items;
 }
 
 async function loadReview() {
   const params = new URLSearchParams({ limit: '20' });
   if (filters.value.subject) params.set('subject', filters.value.subject);
-  const res = await fetch(`/api/study/error-review?${params}`);
-  const json = await res.json();
+  const json = await apiGet(`/study/error-review?${params}`);
   if (json.success) {
     reviewQueue.value = json.data;
     reviewIdx.value = 0;
@@ -162,11 +161,7 @@ async function loadReview() {
 
 async function reviewAnswer(isCorrect: boolean) {
   const item = reviewQueue.value[reviewIdx.value];
-  await fetch(`/api/study/error-review/${item.id}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ isCorrect }),
-  });
+  await apiPost(`/study/error-review/${item.id}`, { isCorrect });
 
   if (reviewIdx.value < reviewQueue.value.length - 1) {
     reviewIdx.value++;
@@ -179,35 +174,23 @@ async function reviewAnswer(isCorrect: boolean) {
 }
 
 async function markResolved(e: any) {
-  await fetch(`/api/practice/errors/${e.id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ isResolved: true }),
-  });
+  await apiPut(`/practice/errors/${e.id}`, { isResolved: true });
   toast('success', '已标记为掌握');
   loadData();
 }
 
 async function markUnresolved(e: any) {
-  await fetch(`/api/practice/errors/${e.id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ isResolved: false }),
-  });
+  await apiPut(`/practice/errors/${e.id}`, { isResolved: false });
   loadData();
 }
 
 async function deleteError(id: string) {
-  await fetch(`/api/practice/errors/${id}`, { method: 'DELETE' });
+  await apiDelete(`/practice/errors/${id}`);
   loadData();
 }
 
 async function addToFlashcard(questionId: string) {
-  await fetch('/api/flashcards/add', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ questionId }),
-  });
+  await apiPost('/flashcards/add', { questionId });
   toast('success', '已加入闪卡');
 }
 

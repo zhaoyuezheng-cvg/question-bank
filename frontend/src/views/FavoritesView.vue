@@ -48,6 +48,7 @@ import { ref, onMounted } from 'vue';
 import { renderMarkdown } from '@/utils/markdown';
 import { SUBJECT_LABELS, SUBJECT_COLORS, getSubjectLabel, getTypeLabel } from '@/utils/constants';
 import type { Subject } from 'shared/src/index';
+import { apiGet, apiDelete } from '@/utils/api';
 
 const items = ref<any[]>([]);
 const loading = ref(false);
@@ -57,14 +58,13 @@ async function load() {
   loading.value = true;
   const params = new URLSearchParams({ pageSize: '50' });
   if (subject.value) params.set('subject', subject.value);
-  const res = await fetch(`/api/practice/favorites?${params}`);
-  const json = await res.json();
+  const json = await apiGet(`/practice/favorites?${params}`);
   if (json.success) items.value = json.data.items;
   loading.value = false;
 }
 
 async function remove(questionId: string) {
-  await fetch(`/api/practice/favorites/${questionId}`, { method: 'DELETE' });
+  await apiDelete(`/practice/favorites/${questionId}`);
   await load();
 }
 

@@ -126,6 +126,7 @@
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue';
 import { SUBJECT_LABELS, SUBJECT_COLORS, getSubjectLabel } from '@/utils/constants';
+import { apiGet, apiPost, apiDelete } from '@/utils/api';
 
 const toast = inject<(type: string, msg: string) => void>('toast')!;
 const confirmFn = inject<(opts: any) => Promise<boolean>>('confirm')!;
@@ -141,8 +142,7 @@ const newBook = ref({ name: '', subject: 'math', grade: '', version: '', volume:
 
 async function loadBooks() {
   loading.value = true;
-  const res = await fetch('/api/textbooks');
-  const json = await res.json();
+  const json = await apiGet('/textbooks');
   if (json.success) books.value = json.data.map((b: any) => ({
     ...b,
     chapters: b.chapters.map((c: any) => ({ ...c, _open: false })),
@@ -151,7 +151,7 @@ async function loadBooks() {
 }
 
 async function seedDefault() {
-  await fetch('/api/textbooks/seed', { method: 'POST' });
+  await apiPost('/textbooks/seed', {});
   toast('success', '鲁教版七年级目录已预置');
   loadBooks();
 }
@@ -161,19 +161,14 @@ async function handleImport() {
   try {
     const parsed = JSON.parse(importText.value);
     const catalogs = Array.isArray(parsed) ? parsed : [parsed];
-    const res = await fetch('/api/textbooks/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ catalogs }),
-    });
-    const json = await res.json();
+    const json = await apiPost('/textbooks/import', { catalogs });
     if (json.success) {
-      toast('success', `成功导入 ${json.data.success} 个目录`);
+      toast('success', `成功导入 ${json.data?.success ?? 0} 个目录`);
       showImport.value = false;
       importText.value = '';
       loadBooks();
     } else {
-      toast('error', json.error);
+      toast('error', json.error || '操作失败');
     }
   } catch (e: any) {
     toast('error', 'JSON 解析失败: ' + e.message);
@@ -184,11 +179,7 @@ async function handleImport() {
 
 async function handleAdd() {
   if (!newBook.value.name.trim()) { toast('error', '名称不能为空'); return; }
-  await fetch('/api/textbooks', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(newBook.value),
-  });
+  await apiPost('/textbooks', newBook.value);
   showAdd.value = false;
   newBook.value = { name: '', subject: 'math', grade: '', version: '', volume: '' };
   toast('success', '目录已创建');
@@ -198,7 +189,7 @@ async function handleAdd() {
 async function handleDelete(book: any) {
   const ok = await confirmFn({ message: `确定删除「${book.name}」？`, icon: '🗑️' });
   if (!ok) return;
-  await fetch(`/api/textbooks/${book.id}`, { method: 'DELETE' });
+  await apiDelete(`/textbooks/${book.id}`);
   toast('success', '已删除');
   loadBooks();
 }

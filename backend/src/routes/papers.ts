@@ -303,3 +303,80 @@ paperRouter.get('/:id/print', async (req: Request, res: Response) => {
     res.status(500).send(`生成打印页面失败: ${err.message}`);
   }
 });
+
+// POST /api/papers/auto-generate - 自动组卷
+// body: { subject, title, rules: [{ type, difficulty, count }], totalScore }
+paperRouter.post('/auto-generate', async (req: Request, res: Response) => {
+  try {
+    const { subject, title, rules, totalScore = 100 } = req.body;
+    if (!subject) return res.status(400).json({ success: false, error: '请选择学科' });
+    if (!rules?.length) return res.status(400).json({ success: false, error: '请设置组卷规则' });
+
+    const pickedIds: string[] = [];
+    const details: any[] = [];
+
+    for (const rule of rules) {
+      const where: any = { subject };
+      if (rule.type) where.type = rule.type;
+      if (rule.difficulty) where.difficulty = rule.difficulty;
+
+      const available = await prisma.question.count({ where });
+      if (available === 0) {
+        details.push({ rule, picked: 0, reason: '题库中无匹配题目' });
+        continue;
+      }
+
+      const takeCount = Math.min(rule.count, available);
+      const questions = await prisma.question.findMany({ where, take: takeCount * 2 });
+      // Shuffle
+      for (let i = questions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [questions[i], questions[j]] = [questions[j], questions[i]];
+      }
+      const picked = questions.slice(0, takeCount).filter(q => !pickedIds.includes(q.id));
+      pickedIds.push(...picked.map(q => q.id));
+      details.push({ rule, picked: picked.length, requested: rule.count });
+    }
+
+    if (pickedIds.length === 0) {
+      return res.json({ success: false, error: '没有匹配的题目可用于组卷' });
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const paper = await prisma.examPaper.create({
+      data: {
+        id: uuid(),
+        title: title || `${subject}自动组卷 (${new Date(now * 1000).toLocaleDateString('zh-CN')})`,
+        subject,
+        totalScore,
+        showAnalysis: true,
+        showAnswer: false,
+        answerAreaLines: 5,
+        fontSize: 14,
+        createdAt: now,
+        updatedAt: now,
+        questions: {
+          create: pickedIds.map((qId, i) => ({
+            id: uuid(),
+            questionId: qId,
+            order: i + 1,
+            score: Math.floor(totalScore / pickedIds.length),
+          })),
+        },
+      },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        paperId: paper.id,
+        title: paper.title,
+        questionCount: pickedIds.length,
+        totalScore,
+        details,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});

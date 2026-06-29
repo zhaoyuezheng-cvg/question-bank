@@ -38,6 +38,25 @@ function verifyToken(token: string): any {
   return payload;
 }
 
+// 缓存 userCount，避免每次请求查库
+let cachedUserCount: number | null = null;
+let userCountCacheTime = 0;
+const USER_COUNT_CACHE_TTL = 60_000; // 60秒缓存
+
+function invalidateUserCountCache() {
+  cachedUserCount = null;
+}
+
+async function getUserCount(): Promise<number> {
+  const now = Date.now();
+  if (cachedUserCount !== null && now - userCountCacheTime < USER_COUNT_CACHE_TTL) {
+    return cachedUserCount;
+  }
+  cachedUserCount = await prisma.user.count();
+  userCountCacheTime = now;
+  return cachedUserCount;
+}
+
 // Auth middleware
 export function authMiddleware(req: Request, res: Response, next: Function) {
   // Skip auth for login/register and health check
@@ -46,7 +65,7 @@ export function authMiddleware(req: Request, res: Response, next: Function) {
   }
 
   // Skip if no users exist (first run)
-  prisma.user.count().then(count => {
+  getUserCount().then(count => {
     if (count === 0) return next();
 
     const authHeader = req.headers.authorization;
@@ -124,6 +143,7 @@ authRouter.post('/register', async (req: Request, res: Response) => {
     });
 
     await auditLog({ userId: user.id, action: 'register', target: 'user', targetId: user.id, detail: `${user.username} (${user.role})`, ip: req.ip });
+    invalidateUserCountCache();
 
     res.status(201).json({
       success: true,
@@ -229,6 +249,7 @@ authRouter.delete('/users/:id', async (req: Request, res: Response) => {
 
     await prisma.user.delete({ where: { id: req.params.id } });
     await auditLog({ userId: decoded.userId, action: 'delete', target: 'user', targetId: req.params.id, ip: req.ip });
+    invalidateUserCountCache();
     res.json({ success: true, message: '已删除' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

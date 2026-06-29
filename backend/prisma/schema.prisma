@@ -33,6 +33,7 @@ model Question {
   favorites       Favorite[]
   flashcards      Flashcard[]
   practiceRecords PracticeRecord[]
+  notes           QuestionNote[]
 
   @@index([subject])
   @@index([category])
@@ -281,6 +282,7 @@ model User {
   errorBooks      ErrorBook[]
   favorites       Favorite[]
   practiceRecords PracticeRecord[]
+  notes           QuestionNote[]
   auditLogs       AuditLog[]
 }
 
@@ -329,4 +331,21 @@ model QuestionRelation {
   @@unique([questionId, relatedId])
   @@index([questionId])
   @@index([relatedId])
+}
+
+// ---- 题目笔记 ----
+model QuestionNote {
+  id          String @id
+  questionId  String
+  userId      String
+  content     String   // 笔记内容（Markdown）
+  createdAt   Int
+  updatedAt   Int
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, userId])
+  @@index([questionId])
+  @@index([userId])
 }

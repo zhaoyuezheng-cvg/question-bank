@@ -150,6 +150,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { usePaperStore } from '@/stores/paperStore';
 import { renderMarkdown } from '@/utils/markdown';
 import { SUBJECT_LABELS, getSubjectLabel } from '@/utils/constants';
+import { apiGet } from '@/utils/api';
 import type { Question, Subject } from 'shared/src/index';
 
 const route = useRoute();
@@ -211,8 +212,7 @@ async function loadPickerQuestions() {
   params.set('pageSize', '100');
   if (pickerFilter.value.subject) params.set('subject', pickerFilter.value.subject);
   if (pickerFilter.value.keyword) params.set('keyword', pickerFilter.value.keyword);
-  const res = await fetch(`/api/questions?${params}`);
-  const json = await res.json();
+  const json = await apiGet(`/questions?${params}`);
   if (json.success) pickerQuestions.value = json.data.items;
 }
 

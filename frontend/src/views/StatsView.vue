@@ -97,6 +97,7 @@ import { ref, onMounted, nextTick } from 'vue';
 import * as echarts from 'echarts';
 import { getSubjectLabel, SUBJECT_LABELS, SUBJECT_COLORS, DIFFICULTY_LABELS, DIFFICULTY_COLORS } from '@/utils/constants';
 import type { Subject, Difficulty } from 'shared/src/index';
+import { apiGet } from '@/utils/api';
 
 const subjectChartRef = ref<HTMLElement>();
 const difficultyChartRef = ref<HTMLElement>();
@@ -118,10 +119,15 @@ const trend = ref<any[]>([]);
 const weakAreas = ref<any[]>([]);
 
 let charts: echarts.ECharts[] = [];
+let statsResizeHandler: (() => void) | null = null;
 
 function destroyCharts() {
   charts.forEach(c => c.dispose());
   charts = [];
+  if (statsResizeHandler) {
+    window.removeEventListener('resize', statsResizeHandler);
+    statsResizeHandler = null;
+  }
 }
 
 function initCharts() {
@@ -152,7 +158,6 @@ function initCharts() {
         label: { show: true, formatter: '{c}%', fontSize: 11 },
       }],
     });
-    window.addEventListener('resize', () => chart.resize());
   }
 
   // Subject bar chart
@@ -174,7 +179,6 @@ function initCharts() {
       }],
       grid: { left: 50, right: 20, top: 20, bottom: 40 },
     });
-    window.addEventListener('resize', () => chart.resize());
   }
 
   // Difficulty chart
@@ -196,7 +200,6 @@ function initCharts() {
       }],
       grid: { left: 50, right: 20, top: 20, bottom: 40 },
     });
-    window.addEventListener('resize', () => chart.resize());
   }
 
   // Trend chart
@@ -217,16 +220,18 @@ function initCharts() {
       ],
       grid: { left: 50, right: 50, top: 20, bottom: 40 },
     });
-    window.addEventListener('resize', () => chart.resize());
   }
+
+  // 统一 resize handler
+  statsResizeHandler = () => charts.forEach(c => c.resize());
+  window.addEventListener('resize', statsResizeHandler);
 }
 
 async function loadData() {
   const params = new URLSearchParams();
   if (period.value !== 'all') params.set('period', period.value);
 
-  const res = await fetch(`/api/recommend/enhanced-stats?${params}`);
-  const json = await res.json();
+  const json = await apiGet(`/recommend/enhanced-stats?${params}`);
   if (json.success) {
     summary.value = { totalRecords: json.data.totalRecords, accuracy: json.data.totalRecords > 0 ? Math.round(json.data.subjectStats.reduce((a: number, s: any) => a + s.correct, 0) / json.data.subjectStats.reduce((a: number, s: any) => a + s.total, 0) * 100) || 0 : 0 };
     subjectStats.value = json.data.subjectStats;
@@ -234,8 +239,7 @@ async function loadData() {
     difficultyStats.value = json.data.difficultyStats;
     trend.value = json.data.trend;
 
-    const weakRes = await fetch('/api/recommend/weak?limit=5');
-    const weakJson = await weakRes.json();
+    const weakJson = await apiGet('/recommend/weak?limit=5');
     if (weakJson.success) weakAreas.value = weakJson.data.weakAreas;
 
     await nextTick();

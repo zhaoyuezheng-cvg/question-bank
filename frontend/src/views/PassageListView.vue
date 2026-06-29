@@ -92,6 +92,7 @@ import {
   SUBJECT_LABELS, SUBJECT_COLORS, DIFFICULTY_COLORS,
   getSubjectLabel, getTypeLabel, getSubTypeLabel,
 } from '@/utils/constants';
+import { apiGet, apiDelete } from '@/utils/api';
 
 const toast = inject<(type: string, msg: string) => void>('toast')!;
 const confirmFn = inject<(opts: any) => Promise<boolean>>('confirm')!;
@@ -115,8 +116,7 @@ async function loadData() {
     if (filters.value.subject) params.set('subject', filters.value.subject);
     if (filters.value.category) params.set('category', filters.value.category);
     if (filters.value.keyword) params.set('keyword', filters.value.keyword);
-    const res = await fetch(`/api/passages?${params}`);
-    const json = await res.json();
+    const json = await apiGet(`/passages?${params}`);
     if (json.success) {
       passages.value = json.data.items;
       totalPages.value = json.data.totalPages;
@@ -129,7 +129,7 @@ async function loadData() {
 async function handleDelete(p: any) {
   const ok = await confirmFn({ message: `确定删除「${p.title}」？关联的子题不会被删除。`, icon: '🗑️' });
   if (!ok) return;
-  await fetch(`/api/passages/${p.id}`, { method: 'DELETE' });
+  await apiDelete(`/passages/${p.id}`);
   toast('success', '已删除');
   loadData();
 }

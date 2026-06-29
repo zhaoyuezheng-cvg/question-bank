@@ -139,6 +139,7 @@ import {
   SUBJECT_LABELS, QUESTION_TYPE_LABELS, DIFFICULTY_LABELS,
 } from '@/utils/constants';
 import type { Difficulty } from 'shared/src/index';
+import { apiPost } from '@/utils/api';
 
 const toast = inject<(type: string, msg: string) => void>('toast')!;
 
@@ -170,17 +171,12 @@ async function parseWithAI() {
     if (aiConfig.value.apiKey) localStorage.setItem('ai-api-key', aiConfig.value.apiKey);
     if (aiConfig.value.model) localStorage.setItem('ai-model', aiConfig.value.model);
 
-    const res = await fetch('/api/ai/parse', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: inputText.value,
-        apiKey: aiConfig.value.apiKey || undefined,
-        apiBase: aiConfig.value.apiBase || undefined,
-        model: aiConfig.value.model || undefined,
-      }),
+    const json = await apiPost('/ai/parse', {
+      text: inputText.value,
+      apiKey: aiConfig.value.apiKey || undefined,
+      apiBase: aiConfig.value.apiBase || undefined,
+      model: aiConfig.value.model || undefined,
     });
-    const json = await res.json();
     if (json.success) {
       parsedQuestions.value = json.data.questions;
       if (parsedQuestions.value.length === 0) {
@@ -201,18 +197,13 @@ async function parseWithAI() {
 async function importQuestions() {
   importing.value = true;
   try {
-    const res = await fetch('/api/ai/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        questions: parsedQuestions.value,
-        passageTitle: passageTitle.value || undefined,
-        passageSubject: parsedQuestions.value[0]?.subject,
-        passageCategory: parsedQuestions.value[0]?.category,
-        passageContent: passageTitle.value ? inputText.value.slice(0, 2000) : undefined,
-      }),
+    const json = await apiPost('/ai/import', {
+      questions: parsedQuestions.value,
+      passageTitle: passageTitle.value || undefined,
+      passageSubject: parsedQuestions.value[0]?.subject,
+      passageCategory: parsedQuestions.value[0]?.category,
+      passageContent: passageTitle.value ? inputText.value.slice(0, 2000) : undefined,
     });
-    const json = await res.json();
     if (json.success) {
       importResult.value = json.data;
       step.value = 'done';

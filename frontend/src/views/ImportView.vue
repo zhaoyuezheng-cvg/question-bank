@@ -142,6 +142,7 @@ A. 踹（chuài）水   B. 筵（yàn）席
 import { ref, inject, computed } from 'vue';
 import { SUBJECT_LABELS } from '@/utils/constants';
 import type { ImportResult } from 'shared/src/index';
+import { apiPost, apiUpload } from '@/utils/api';
 
 const toast = inject<(type: string, msg: string) => void>('toast')!;
 
@@ -259,37 +260,30 @@ async function handleImport() {
       formData.append('category', defaultCategory.value);
       formData.append('subCategory', defaultSubCategory.value);
 
-      const token = localStorage.getItem('qb-token');
-      res = await fetch('/api/import/excel', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
+      // Excel 文件上传
+      const json = await apiUpload('/import/excel', formData);
+      if (json.success) {
+        result.value = json.data;
+        toast('success', `导入完成！成功 ${json.data.success} 道，跳过 ${json.data.skipped} 道`);
+      } else {
+        toast('error', json.error || '导入失败');
+      }
+      return;
     } else {
       // 文本导入
-      res = await fetch('/api/import/text', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: importText.value,
-          subject: defaultSubject.value,
-          category: defaultCategory.value,
-          subCategory: defaultSubCategory.value,
-        }),
+      const json = await apiPost('/import/text', {
+        text: importText.value,
+        subject: defaultSubject.value,
+        category: defaultCategory.value,
+        subCategory: defaultSubCategory.value,
       });
-    }
-
-    const json = await res.json();
-    if (json.success) {
-      result.value = json.data;
-      if (json.data.success > 0) {
-        toast('success', `成功导入 ${json.data.success} 道题目`);
+      if (json.success) {
+        result.value = json.data;
+        toast('success', `导入完成！成功 ${json.data.success} 道，跳过 ${json.data.skipped} 道`);
+      } else {
+        toast('error', json.error || '导入失败');
       }
-      if (json.data.skipped > 0) {
-        toast('info', `跳过 ${json.data.skipped} 道重复题目`);
-      }
-    } else {
-      toast('error', '导入失败: ' + (json.error || '未知错误'));
+      return;
     }
   } catch (e: any) {
     toast('error', '导入失败: ' + e.message);

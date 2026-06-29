@@ -124,6 +124,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { renderMarkdown } from '@/utils/markdown';
 import { SUBJECT_LABELS, getSubjectLabel } from '@/utils/constants';
+import { apiGet, apiPost, apiDelete } from '@/utils/api';
 
 const mode = ref<'study' | 'manage'>('study');
 const dueCards = ref<any[]>([]);
@@ -139,22 +140,19 @@ const addedIds = ref<Set<string>>(new Set());
 const currentCard = computed(() => dueCards.value[currentCardIdx.value]);
 
 async function loadDue() {
-  const res = await fetch('/api/flashcards/due?limit=30');
-  const json = await res.json();
+  const json = await apiGet('/flashcards/due?limit=30');
   if (json.success) dueCards.value = json.data;
   showAnswer.value = false;
   currentCardIdx.value = 0;
 }
 
 async function loadStats() {
-  const res = await fetch('/api/flashcards/stats');
-  const json = await res.json();
+  const json = await apiGet('/flashcards/stats');
   if (json.success) stats.value = json.data;
 }
 
 async function loadAll() {
-  const res = await fetch('/api/flashcards/due?limit=999');
-  const json = await res.json();
+  const json = await apiGet('/flashcards/due?limit=999');
   if (json.success) allCards.value = json.data;
 }
 
@@ -162,11 +160,7 @@ async function rate(quality: number) {
   const card = currentCard.value;
   if (!card) return;
 
-  await fetch(`/api/flashcards/${card.id}/review`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ quality }),
-  });
+  await apiPost(`/flashcards/${card.id}/review`, { quality });
 
   if (currentCardIdx.value < dueCards.value.length - 1) {
     currentCardIdx.value++;
@@ -181,23 +175,18 @@ async function searchForAdd() {
   const params = new URLSearchParams({ pageSize: '20' });
   if (addSubject.value) params.set('subject', addSubject.value);
   if (addKeyword.value) params.set('keyword', addKeyword.value);
-  const res = await fetch(`/api/questions?${params}`);
-  const json = await res.json();
+  const json = await apiGet(`/questions?${params}`);
   if (json.success) searchResults.value = json.data.items;
 }
 
 async function addToFlashcard(questionId: string) {
-  await fetch('/api/flashcards/add', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ questionId }),
-  });
+  await apiPost('/flashcards/add', { questionId });
   addedIds.value.add(questionId);
   await loadStats();
 }
 
 async function removeFlashcard(id: string) {
-  await fetch(`/api/flashcards/${id}`, { method: 'DELETE' });
+  await apiDelete(`/flashcards/${id}`);
   await loadAll();
   await loadStats();
 }

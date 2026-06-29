@@ -123,6 +123,7 @@ import {
   getSubTypeLabel, getSubTypesForSubject,
 } from '@/utils/constants';
 import type { Difficulty } from 'shared/src/index';
+import { apiGet, apiPost, apiPut, apiUpload } from '@/utils/api';
 
 const route = useRoute();
 const router = useRouter();
@@ -203,8 +204,7 @@ async function handleImageUpload(e: Event) {
   if (!file) return;
   const formData = new FormData();
   formData.append('image', file);
-  const res = await fetch('/api/upload', { method: 'POST', body: formData });
-  const json = await res.json();
+  const json = await apiUpload('/upload', formData);
   if (json.success) {
     form.value.content += `\n![图片](${json.data.url})`;
     toast('success', '图片已上传');
@@ -225,21 +225,11 @@ async function savePassage() {
     let passageId: string;
 
     if (isEdit.value) {
-      const res = await fetch(`/api/passages/${route.params.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(passageData),
-      });
-      const json = await res.json();
+      const json = await apiPut(`/passages/${route.params.id}`, passageData);
       if (!json.success) { toast('error', '保存失败'); return; }
       passageId = json.data.id;
     } else {
-      const res = await fetch('/api/passages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(passageData),
-      });
-      const json = await res.json();
+      const json = await apiPost('/passages', passageData);
       if (!json.success) { toast('error', '创建失败'); return; }
       passageId = json.data.id;
     }
@@ -268,17 +258,9 @@ async function savePassage() {
       }
 
       if (q.existingId) {
-        await fetch(`/api/questions/${q.existingId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(qData),
-        });
+        await apiPut(`/questions/${q.existingId}`, qData);
       } else {
-        await fetch('/api/questions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(qData),
-        });
+        await apiPost('/questions', qData);
       }
       savedCount++;
     }
@@ -291,8 +273,7 @@ async function savePassage() {
 }
 
 async function loadCategoryTree() {
-  const res = await fetch('/api/passages/categories/tree');
-  const json = await res.json();
+  const json = await apiGet('/passages/categories/tree');
   if (json.success) categoryTree.value = json.data;
 }
 
@@ -300,8 +281,7 @@ onMounted(async () => {
   await loadCategoryTree();
 
   if (isEdit.value) {
-    const res = await fetch(`/api/passages/${route.params.id}`);
-    const json = await res.json();
+    const json = await apiGet(`/passages/${route.params.id}`);
     if (json.success) {
       const p = json.data;
       form.value = {

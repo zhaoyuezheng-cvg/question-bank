@@ -186,6 +186,7 @@
 import { ref, computed, onMounted, onUnmounted, inject } from 'vue';
 import { renderMarkdown } from '@/utils/markdown';
 import { SUBJECT_LABELS, getSubjectLabel } from '@/utils/constants';
+import { apiGet, apiPost } from '@/utils/api';
 
 const toast = inject<(type: string, msg: string) => void>('toast')!;
 const papers = ref<any[]>([]);
@@ -207,26 +208,19 @@ const currentQ = computed(() => session.value.questions?.[currentIdx.value]);
 async function loadPapers() {
   const params = new URLSearchParams({ pageSize: '50' });
   if (filterSubject.value) params.set('subject', filterSubject.value);
-  const res = await fetch(`/api/papers?${params}`);
-  const json = await res.json();
+  const json = await apiGet(`/papers?${params}`);
   if (json.success) papers.value = json.data.items;
 }
 
 async function loadHistory() {
-  const res = await fetch('/api/exam?pageSize=10');
-  const json = await res.json();
+  const json = await apiGet('/exam?pageSize=10');
   if (json.success) examHistory.value = json.data.items;
 }
 
 async function startExam() {
   loading.value = true;
   try {
-    const res = await fetch('/api/exam/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paperId: selectedPaperId.value, timeLimit: timeLimit.value }),
-    });
-    const json = await res.json();
+    const json = await apiPost('/exam/start', { paperId: selectedPaperId.value, timeLimit: timeLimit.value });
     if (json.success) {
       session.value = json.data;
       answers.value = {};
@@ -277,12 +271,7 @@ async function submitExam(forceTimeout: boolean) {
 
   if (timer) clearInterval(timer);
 
-  const res = await fetch(`/api/exam/${session.value.sessionId}/submit`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ answers: answers.value, forceTimeout }),
-  });
-  const json = await res.json();
+  const json = await apiPost(`/exam/${session.value.sessionId}/submit`, { answers: answers.value, forceTimeout });
   if (json.success) {
     result.value = json.data;
     session.value.status = forceTimeout ? 'timeout' : 'completed';
@@ -290,11 +279,7 @@ async function submitExam(forceTimeout: boolean) {
 }
 
 async function addToFlashcard(questionId: string) {
-  await fetch('/api/flashcards/add', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ questionId }),
-  });
+  await apiPost('/flashcards/add', { questionId });
   toast('success', '已加入闪卡');
 }
 
