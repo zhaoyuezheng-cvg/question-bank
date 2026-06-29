@@ -196,7 +196,7 @@
     <main class="main-content">
       <router-view v-slot="{ Component }">
         <transition name="route" mode="out-in">
-          <component :is="Component" />
+          <component :is="Component" v-if="Component" />
         </transition>
       </router-view>
     </main>
