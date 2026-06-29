@@ -63,6 +63,30 @@
           <div class="history-score">
             <span :class="h.score >= h.totalScore * 0.6 ? 'text-success' : 'text-danger'">{{ h.score }}/{{ h.totalScore }}</span>
             <span class="text-muted" style="margin-left: 8px;">{{ h.correctCount }}/{{ h.totalCount }} 正确</span>
+            <button class="btn btn-sm btn-ghost" style="margin-left: 8px;" @click="loadComparison(h.paperId)">📊 对比</button>
+          </div>
+        </div>
+
+        <!-- Comparison Panel -->
+        <div v-if="comparison" class="card" style="margin-top: 16px;">
+          <div class="card-header">
+            <span class="card-title">📊 试卷对比分析</span>
+            <button class="btn btn-sm" @click="comparison = null">关闭</button>
+          </div>
+          <div v-if="comparison.sessions.length" style="margin-bottom: 16px;">
+            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">成绩趋势（{{ comparison.sessions.length }} 次考试）</div>
+            <div ref="comparisonChartRef" style="width: 100%; height: 200px;"></div>
+          </div>
+          <div v-if="comparison.questionStats.length">
+            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">每题得分率</div>
+            <div v-for="qs in comparison.questionStats" :key="qs.questionId" style="display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 13px;">
+              <span style="width: 24px; text-align: right; color: var(--text-muted);">{{ qs.order }}.</span>
+              <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ qs.content }}</span>
+              <div style="width: 100px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;">
+                <div :style="{ width: qs.correctRate + '%', height: '100%', borderRadius: '3px', background: qs.correctRate >= 70 ? 'var(--success)' : qs.correctRate >= 40 ? 'var(--warning)' : 'var(--danger)' }"></div>
+              </div>
+              <span style="width: 40px; text-align: right;" :style="{ color: qs.correctRate >= 70 ? 'var(--success)' : qs.correctRate >= 40 ? 'var(--warning)' : 'var(--danger)' }">{{ qs.correctRate }}%</span>
+            </div>
           </div>
         </div>
       </div>
@@ -183,7 +207,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, inject } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, inject } from 'vue';
+import * as echarts from 'echarts';
 import { renderMarkdown } from '@/utils/markdown';
 import { SUBJECT_LABELS, getSubjectLabel } from '@/utils/constants';
 import { apiGet, apiPost } from '@/utils/api';
@@ -200,6 +225,9 @@ const currentIdx = ref(0);
 const timeRemaining = ref(0);
 const result = ref<any>({});
 const examHistory = ref<any[]>([]);
+const comparison = ref<any>(null);
+const comparisonChartRef = ref<HTMLElement>();
+let comparisonChart: any = null;
 let timer: any = null;
 let lastWarnSecond = -1;
 
@@ -215,6 +243,34 @@ async function loadPapers() {
 async function loadHistory() {
   const json = await apiGet('/exam?pageSize=10');
   if (json.success) examHistory.value = json.data.items;
+}
+
+async function loadComparison(paperId: string) {
+  const json = await apiGet(`/exam/compare?paperId=${paperId}`);
+  if (json.success) {
+    comparison.value = json.data;
+    await nextTick();
+    if (comparisonChartRef.value && json.data.sessions.length > 1) {
+      if (comparisonChart) comparisonChart.dispose();
+      comparisonChart = echarts.init(comparisonChartRef.value);
+      comparisonChart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['得分率'], bottom: 0 },
+        xAxis: { type: 'category', data: json.data.sessions.map((s: any) => s.date.slice(5)) },
+        yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
+        series: [{
+          type: 'line',
+          data: json.data.sessions.map((s: any) => s.accuracy),
+          smooth: true,
+          lineStyle: { color: '#6366f1', width: 2 },
+          itemStyle: { color: '#6366f1' },
+          areaStyle: { color: 'rgba(99,102,241,0.1)' },
+          label: { show: true, formatter: '{c}%', fontSize: 11 },
+        }],
+        grid: { left: 50, right: 20, top: 20, bottom: 40 },
+      });
+    }
+  }
 }
 
 async function startExam() {
@@ -400,6 +456,13 @@ onUnmounted(() => { if (timer) clearInterval(timer); window.removeEventListener(
 
 .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-light); }
 .history-item:last-child { border-bottom: none; }
+
+@media (max-width: 768px) {
+  .history-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .timer-bar .timer-display { font-size: 24px; }
+  .question-nav { flex-wrap: wrap; }
+  .question-nav button { width: 36px; height: 36px; font-size: 12px; }
+}
 .history-info { display: flex; align-items: center; gap: 8px; }
 .history-score { font-weight: 600; }
 

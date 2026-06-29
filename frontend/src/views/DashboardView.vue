@@ -25,6 +25,58 @@
       </div>
     </div>
 
+    <!-- First-use Onboarding -->
+    <div v-if="!loading && stats[0].value === 0" class="onboarding-card">
+      <div style="font-size: 48px; margin-bottom: 16px;">🚀</div>
+      <h2 style="font-size: 20px; margin-bottom: 8px;">欢迎使用私人题库！</h2>
+      <p style="color: var(--text-secondary); margin-bottom: 24px; max-width: 400px;">开始你的学习之旅，按以下步骤快速上手：</p>
+      <div style="display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 400px;">
+        <router-link to="/import" class="onboarding-step">
+          <span style="font-size: 24px;">📥</span>
+          <div>
+            <div style="font-weight: 600;">导入题目</div>
+            <div style="font-size: 13px; color: var(--text-secondary);">从文本或 Excel 批量导入</div>
+          </div>
+          <span style="margin-left: auto; color: var(--primary);">→</span>
+        </router-link>
+        <router-link to="/questions/new" class="onboarding-step">
+          <span style="font-size: 24px;">✏️</span>
+          <div>
+            <div style="font-weight: 600;">手动添加</div>
+            <div style="font-size: 13px; color: var(--text-secondary);">逐题创建你的题库</div>
+          </div>
+          <span style="margin-left: auto; color: var(--primary);">→</span>
+        </router-link>
+        <router-link to="/ai-import" class="onboarding-step">
+          <span style="font-size: 24px;">🤖</span>
+          <div>
+            <div style="font-weight: 600;">AI 智能导入</div>
+            <div style="font-size: 13px; color: var(--text-secondary);">粘贴文本，AI 自动解析题目</div>
+          </div>
+          <span style="margin-left: auto; color: var(--primary);">→</span>
+        </router-link>
+      </div>
+    </div>
+
+    <!-- Review Reminder -->
+    <div v-if="reviewInfo.flashcardDue > 0 || reviewInfo.errorDue > 0" class="review-banner">
+      <div class="review-banner-content">
+        <span style="font-size: 28px;">📋</span>
+        <div>
+          <div style="font-weight: 700; font-size: 15px;">今日待复习</div>
+          <div style="font-size: 13px; color: var(--text-secondary);">
+            <span v-if="reviewInfo.flashcardDue > 0">🃏 闪卡 <strong>{{ reviewInfo.flashcardDue }}</strong> 张</span>
+            <span v-if="reviewInfo.flashcardDue > 0 && reviewInfo.errorDue > 0" style="margin: 0 8px;">·</span>
+            <span v-if="reviewInfo.errorDue > 0">❌ 错题 <strong>{{ reviewInfo.errorDue }}</strong> 道</span>
+          </div>
+        </div>
+        <div style="margin-left: auto; display: flex; gap: 8px;">
+          <router-link v-if="reviewInfo.flashcardDue > 0" to="/flashcards" class="btn btn-primary btn-sm">开始复习闪卡</router-link>
+          <router-link v-if="reviewInfo.errorDue > 0" to="/practice/errors" class="btn btn-sm">复习错题</router-link>
+        </div>
+      </div>
+    </div>
+
     <!-- Charts Row -->
     <div class="charts-row">
       <!-- Subject Pie -->
@@ -65,6 +117,8 @@ const pieChartRef = ref<HTMLElement>();
 const barChartRef = ref<HTMLElement>();
 const typeChartRef = ref<HTMLElement>();
 
+const reviewInfo = ref({ flashcardDue: 0, errorDue: 0 });
+
 const stats = ref([
   { icon: '📝', label: '题目总数', value: 0, gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
   { icon: '📄', label: '试卷数量', value: 0, gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
@@ -76,8 +130,17 @@ let statsData: any = null;
 const chartInstances: echarts.ECharts[] = [];
 let resizeHandler: (() => void) | null = null;
 
+function getEChartsTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  return {
+    textColor: isDark ? '#94a3b8' : '#64748b',
+    bgColor: 'transparent',
+  };
+}
+
 function initCharts() {
   if (!statsData) return;
+  const theme = getEChartsTheme();
 
   // Pie chart - Subject distribution
   if (pieChartRef.value) {
@@ -95,7 +158,7 @@ function initCharts() {
         radius: ['40%', '70%'],
         center: ['50%', '50%'],
         data: pieData,
-        label: { show: true, fontSize: 12 },
+        label: { show: true, fontSize: 12, color: theme.textColor },
         emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.2)' } },
       }],
     });
@@ -111,8 +174,8 @@ function initCharts() {
     });
     bar.setOption({
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: diffData.map(d => d.name), axisLabel: { fontSize: 12 } },
-      yAxis: { type: 'value', minInterval: 1 },
+      xAxis: { type: 'category', data: diffData.map(d => d.name), axisLabel: { fontSize: 12, color: theme.textColor } },
+      yAxis: { type: 'value', minInterval: 1, axisLabel: { color: theme.textColor } },
       series: [{
         type: 'bar',
         data: diffData.map((d, i) => ({
@@ -135,8 +198,8 @@ function initCharts() {
     }));
     typeChart.setOption({
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: typeData.map((t: any) => t.name), axisLabel: { fontSize: 11, rotate: 15 } },
-      yAxis: { type: 'value', minInterval: 1 },
+      xAxis: { type: 'category', data: typeData.map((t: any) => t.name), axisLabel: { fontSize: 11, rotate: 15, color: theme.textColor } },
+      yAxis: { type: 'value', minInterval: 1, axisLabel: { color: theme.textColor } },
       series: [{
         type: 'bar',
         data: typeData.map((t: any, i: number) => ({
@@ -186,6 +249,14 @@ onMounted(async () => {
       await nextTick();
       initCharts();
     }
+
+    // 加载待复习数量
+    const [fcStats, errStats] = await Promise.all([
+      apiGet('/flashcards/stats'),
+      apiGet('/practice/errors/stats'),
+    ]);
+    if (fcStats.success) reviewInfo.value.flashcardDue = fcStats.data?.due || 0;
+    if (errStats.success) reviewInfo.value.errorDue = errStats.data?.dueToday || 0;
   } catch (e) {
     console.error('Dashboard load error:', e);
   } finally {
@@ -271,5 +342,47 @@ onMounted(async () => {
   .charts-row {
     grid-template-columns: 1fr;
   }
+}
+
+.review-banner {
+  background: linear-gradient(135deg, var(--primary-50), var(--success-light));
+  border: 1px solid var(--primary-200);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+.review-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.onboarding-card {
+  background: var(--bg-card);
+  border: 2px dashed var(--primary-200);
+  border-radius: var(--radius-xl);
+  padding: 48px 32px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.onboarding-step {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--bg);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: var(--text);
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
+}
+.onboarding-step:hover {
+  border-color: var(--primary);
+  background: var(--primary-50);
 }
 </style>

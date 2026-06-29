@@ -158,7 +158,19 @@
           <div class="shortcut-hint"><kbd>/</kbd> 搜索</div>
         </div>
         <div style="display: flex; gap: 4px;">
-          <button class="theme-toggle" @click="toggleTheme" :title="theme === 'dark' ? '切换亮色' : '切换暗色'" :style="sidebarCollapsed ? 'justify-content: center; padding: 8px;' : ''">
+          <div v-if="!sidebarCollapsed" style="padding: 8px 0; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,0.3); padding: 0 8px; margin-bottom: 4px;">数据</div>
+          <button class="theme-toggle" @click="exportBackup" style="margin-bottom: 4px;">
+            <span>💾</span>
+            <span>备份数据</span>
+          </button>
+          <label class="theme-toggle" style="cursor: pointer;">
+            <span>📥</span>
+            <span>恢复备份</span>
+            <input type="file" accept=".json" @change="importBackup" style="display: none;" />
+          </label>
+        </div>
+        <button class="theme-toggle" @click="toggleTheme" :title="theme === 'dark' ? '切换亮色' : '切换暗色'" :style="sidebarCollapsed ? 'justify-content: center; padding: 8px;' : ''">
             <span>{{ theme === 'dark' ? '☀️' : '🌙' }}</span>
             <span v-if="!sidebarCollapsed">{{ theme === 'dark' ? '切换亮色' : '切换暗色' }}</span>
           </button>
@@ -210,6 +222,28 @@
         </div>
       </TransitionGroup>
     </div>
+
+    <!-- Shortcuts Panel -->
+    <Transition name="palette">
+      <div v-if="showShortcuts" class="confirm-overlay" @click.self="showShortcuts = false">
+        <div class="confirm-dialog" style="max-width: 480px; text-align: left;">
+          <div class="confirm-title">⌨️ 快捷键</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px;">
+            <div><kbd>N</kbd> 新建题目</div>
+            <div><kbd>⌘K</kbd> 搜索</div>
+            <div><kbd>?</kbd> 快捷键帮助</div>
+            <div><kbd>Esc</kbd> 关闭弹窗</div>
+            <div><kbd>A</kbd><kbd>B</kbd><kbd>C</kbd><kbd>D</kbd> 选答案</div>
+            <div><kbd>Enter</kbd> 提交/下一题</div>
+            <div><kbd>←</kbd><kbd>→</kbd> 考试切题</div>
+            <div><kbd>Space</kbd> 暂停/继续</div>
+          </div>
+          <div class="confirm-actions" style="margin-top: 20px;">
+            <button class="btn btn-primary" @click="showShortcuts = false">关闭</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Confirm Dialog -->
     <Transition name="palette">
@@ -275,12 +309,21 @@ onMounted(() => {
   window.addEventListener('keydown', globalKeyHandler);
 });
 
+const showShortcuts = ref(false);
+
 function globalKeyHandler(e: KeyboardEvent) {
   const tag = (e.target as HTMLElement)?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
   if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
     router.push('/questions/new');
+  }
+  if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    showShortcuts.value = !showShortcuts.value;
+  }
+  if (e.key === 'Escape') {
+    showShortcuts.value = false;
   }
 }
 
@@ -336,6 +379,34 @@ function resolveConfirm(value: boolean) {
 }
 
 provide('confirm', showConfirm);
+
+// Backup
+function exportBackup() {
+  window.open('/api/backup/export', '_blank');
+}
+
+async function importBackup(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const res = await fetch('/api/backup/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('qb-token')}` },
+      body: JSON.stringify(data),
+    });
+    const json = await res.json();
+    if (json.success) {
+      addToast('success', `恢复成功！导入 ${json.data.imported} 道题目`);
+    } else {
+      addToast('error', json.error || '恢复失败');
+    }
+  } catch {
+    addToast('error', '文件格式错误');
+  }
+  (e.target as HTMLInputElement).value = '';
+}
 </script>
 
 <style scoped>

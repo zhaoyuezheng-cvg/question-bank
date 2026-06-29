@@ -148,7 +148,7 @@
       </table>
 
       <!-- Mobile card list -->
-      <div v-else class="mobile-card-list">
+      <div class="mobile-card-list">
         <div v-for="q in store.questions" :key="q.id" class="mobile-card">
           <div class="mobile-card-header">
             <input type="checkbox" :value="q.id" v-model="selectedIds" style="margin-right: 8px;" />

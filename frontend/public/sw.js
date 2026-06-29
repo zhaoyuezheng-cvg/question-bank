@@ -27,7 +27,12 @@ self.addEventListener('activate', (event) => {
 // Fetch: network-first for API, cache-first for static
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  // 只处理 http/https 请求，忽略 chrome-extension 等
+  if (!request.url.startsWith('http')) return;
   const url = new URL(request.url);
+
+  // 只缓存同源请求
+  if (url.origin !== self.location.origin) return;
 
   // API requests: network-first
   if (url.pathname.startsWith('/api/')) {

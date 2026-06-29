@@ -251,19 +251,23 @@ questionRouter.post('/batch-delete', async (req: Request, res: Response) => {
     if (!Array.isArray(ids)) return res.status(400).json({ success: false, error: 'ids 必须是数组' });
 
     if (!force) {
-      // 检查每个题目的关联
-      const issues: { id: string; count: number }[] = [];
-      for (const id of ids) {
-        const [pe, er, fa, fl, pr] = await Promise.all([
-          prisma.paperQuestion.count({ where: { questionId: id } }),
-          prisma.errorBook.count({ where: { questionId: id } }),
-          prisma.favorite.count({ where: { questionId: id } }),
-          prisma.flashcard.count({ where: { questionId: id } }).catch(() => 0),
-          prisma.practiceRecord.count({ where: { questionId: id } }),
-        ]);
-        const total = pe + er + fa + fl + pr;
-        if (total > 0) issues.push({ id, count: total });
-      }
+      // 批量检查关联数据（5 次查询覆盖所有 ID，而非 N×5 次）
+      const [peCounts, erCounts, faCounts, flCounts, prCounts] = await Promise.all([
+        prisma.paperQuestion.groupBy({ by: ['questionId'], where: { questionId: { in: ids } }, _count: true }),
+        prisma.errorBook.groupBy({ by: ['questionId'], where: { questionId: { in: ids } }, _count: true }),
+        prisma.favorite.groupBy({ by: ['questionId'], where: { questionId: { in: ids } }, _count: true }),
+        prisma.flashcard.groupBy({ by: ['questionId'], where: { questionId: { in: ids } }, _count: true }).catch(() => []),
+        prisma.practiceRecord.groupBy({ by: ['questionId'], where: { questionId: { in: ids } }, _count: true }),
+      ]);
+      const countMap: Record<string, number> = {};
+      for (const r of peCounts) countMap[r.questionId] = (countMap[r.questionId] || 0) + r._count;
+      for (const r of erCounts) countMap[r.questionId] = (countMap[r.questionId] || 0) + r._count;
+      for (const r of faCounts) countMap[r.questionId] = (countMap[r.questionId] || 0) + r._count;
+      for (const r of flCounts) countMap[r.questionId] = (countMap[r.questionId] || 0) + r._count;
+      for (const r of prCounts) countMap[r.questionId] = (countMap[r.questionId] || 0) + r._count;
+      const issues = Object.entries(countMap)
+        .filter(([, count]) => count > 0)
+        .map(([id, count]) => ({ id, count }));
       if (issues.length > 0) {
         return res.json({
           success: false,

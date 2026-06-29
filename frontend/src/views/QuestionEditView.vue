@@ -84,6 +84,14 @@
         <div class="form-group">
           <label class="form-label">解析</label>
           <textarea class="form-textarea" v-model="form.analysis" rows="3" placeholder="输入解题思路与解析..."></textarea>
+          <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <button class="btn btn-sm" @click="aiExplain" :disabled="aiLoading">
+              {{ aiLoading ? '⏳ 生成中...' : '🤖 AI 详解' }}
+            </button>
+            <button class="btn btn-sm" @click="aiRewrite" :disabled="aiLoading">
+              🔄 AI 改写
+            </button>
+          </div>
         </div>
 
         <div class="form-group">
@@ -166,6 +174,7 @@ const router = useRouter();
 const store = useQuestionStore();
 const toast = inject<(type: string, msg: string, duration?: number, action?: any) => void>('toast')!;
 const noteContent = ref('');
+const aiLoading = ref(false);
 const relatedQuestions = ref<any[]>([]);
 const relateQuestionId = ref('');
 
@@ -316,6 +325,46 @@ async function saveNote() {
   if (!noteContent.value.trim()) { toast('error', '笔记内容不能为空'); return; }
   await apiPut(`/practice/notes/${route.params.id}`, { content: noteContent.value });
   toast('success', '笔记已保存');
+}
+
+async function aiExplain() {
+  if (!form.value.content.trim()) { toast('error', '请先填写题干'); return; }
+  aiLoading.value = true;
+  try {
+    const json = await apiPost('/ai/explain', { content: form.value.content, answer: form.value.answer, type: form.value.type });
+    if (json.success) {
+      form.value.analysis = json.data.explanation;
+      toast('success', 'AI 详解已生成');
+    } else {
+      toast('error', json.error || '生成失败');
+    }
+  } catch { toast('error', 'AI 服务异常'); } finally { aiLoading.value = false; }
+}
+
+async function aiRewrite() {
+  if (!form.value.content.trim()) { toast('error', '请先填写题干'); return; }
+  aiLoading.value = true;
+  try {
+    const json = await apiPost('/ai/rewrite', {
+      content: form.value.content,
+      answer: form.value.answer,
+      targetDifficulty: form.value.difficulty,
+      targetType: form.value.type,
+    });
+    if (json.success) {
+      const q = json.data.question;
+      form.value.content = q.content || form.value.content;
+      form.value.answer = q.answer || form.value.answer;
+      form.value.analysis = q.analysis || '';
+      if (q.options) {
+        optionsText.value = q.options.map((o: string, i: number) => `${String.fromCharCode(65 + i)}. ${o}`).join('\n');
+      }
+      if (q.difficulty) form.value.difficulty = q.difficulty;
+      toast('success', 'AI 改写完成，请检查后保存');
+    } else {
+      toast('error', json.error || '改写失败');
+    }
+  } catch { toast('error', 'AI 服务异常'); } finally { aiLoading.value = false; }
 }
 
 onMounted(async () => {

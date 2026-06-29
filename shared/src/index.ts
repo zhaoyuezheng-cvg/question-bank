@@ -151,3 +151,58 @@ export interface ImportResult {
   skipped: number;
   errors: string[];
 }
+
+// ---- 错题本 ----
+export interface ErrorBookItem {
+  id: string;
+  questionId: string;
+  userId?: string;
+  wrongAnswer: string;
+  errorNote?: string;
+  isResolved: boolean;
+  easeFactor: number;
+  interval: number;
+  repetitions: number;
+  nextReview: number;
+  lastReview?: number;
+  createdAt: number;
+  updatedAt: number;
+  question?: Question;
+}
+
+// ---- 闪卡 ----
+export interface FlashcardItem {
+  id: string;
+  questionId: string;
+  easeFactor: number;
+  interval: number;
+  repetitions: number;
+  nextReview: number;
+  lastReview?: number;
+  createdAt: number;
+  updatedAt: number;
+  question?: Question;
+}
+
+// ---- 学习报告 ----
+export interface StudyReport {
+  period: { days: number; from: string; to: string };
+  summary: {
+    totalAnswered: number;
+    totalCorrect: number;
+    accuracy: number;
+    studyDays: number;
+    newErrors: number;
+    resolvedErrors: number;
+    avgPerDay: number;
+  };
+  subjectStats: { subject: string; total: number; correct: number; accuracy: number }[];
+  difficultyStats: { difficulty: number; total: number; correct: number; accuracy: number }[];
+  trend: { date: string; total: number; correct: number; accuracy: number }[];
+}
+
+// ---- 试卷对比 ----
+export interface ExamComparison {
+  sessions: { id: string; date: string; score: number; totalScore: number; accuracy: number; timeUsed: number }[];
+  questionStats: { order: number; questionId: string; content: string; type: string; difficulty: number; correctRate: number; totalAttempted: number }[];
+}
