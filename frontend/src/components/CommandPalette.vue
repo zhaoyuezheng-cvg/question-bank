@@ -28,7 +28,8 @@
             >
               <span class="palette-item-icon">{{ item.icon }}</span>
               <div class="palette-item-body">
-                <div class="palette-item-title">{{ item.title }}</div>
+                <div class="palette-item-title" v-if="item.titleHtml" v-html="item.titleHtml"></div>
+                <div class="palette-item-title" v-else>{{ item.title }}</div>
                 <div class="palette-item-desc" v-if="item.desc">{{ item.desc }}</div>
               </div>
               <span class="palette-item-tag" v-if="item.tag">{{ item.tag }}</span>
@@ -55,7 +56,7 @@ import type { Subject, QuestionType } from 'shared/src/index';
 const visible = ref(false);
 const query = ref('');
 const activeIndex = ref(0);
-const results = ref<{ id: string; icon: string; title: string; desc?: string; tag?: string; route: string }[]>([]);
+const results = ref<{ id: string; icon: string; title: string; titleHtml?: string; desc?: string; tag?: string; route: string }[]>([]);
 const inputRef = ref<HTMLInputElement>();
 const router = useRouter();
 
@@ -90,11 +91,21 @@ watch(query, (val) => {
   debounceTimer = setTimeout(() => search(val), 250);
 });
 
+function highlightText(text: string, keyword: string): string {
+  if (!keyword) return text;
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark style="background:var(--warning-light);color:var(--text);padding:0 2px;border-radius:2px;">$1</mark>');
+}
+
 async function search(q: string) {
   try {
+    const token = localStorage.getItem('qb-token');
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     const [qRes, pRes] = await Promise.all([
-      fetch(`/api/questions?keyword=${encodeURIComponent(q)}&pageSize=8`),
-      fetch(`/api/papers?pageSize=5`),
+      fetch(`/api/questions?keyword=${encodeURIComponent(q)}&pageSize=8`, { headers }),
+      fetch(`/api/papers?pageSize=5`, { headers }),
     ]);
     const qJson = await qRes.json();
     const pJson = await pRes.json();
@@ -103,10 +114,12 @@ async function search(q: string) {
 
     if (qJson.success) {
       for (const item of qJson.data.items) {
+        const preview = item.content.slice(0, 80).replace(/\n/g, ' ');
         items.push({
           id: item.id,
           icon: '📝',
-          title: item.content.slice(0, 80).replace(/\n/g, ' '),
+          title: preview,
+          titleHtml: highlightText(preview, q),
           desc: `${getSubjectLabel(item.subject as Subject)} · ${getTypeLabel(item.type as QuestionType)}`,
           tag: item.category,
           route: `/questions/${item.id}/edit`,
@@ -121,6 +134,7 @@ async function search(q: string) {
             id: p.id,
             icon: '📄',
             title: p.title,
+            titleHtml: highlightText(p.title, q),
             desc: p.description || undefined,
             tag: getSubjectLabel(p.subject as Subject),
             route: `/papers/${p.id}`,
