@@ -108,11 +108,11 @@ examRouter.post('/:id/submit', async (req: Request, res: Response) => {
           if (existingError) {
             await prisma.errorBook.update({
               where: { id: existingError.id },
-              data: { wrongAnswer: r.userAnswer, updatedAt: now, isResolved: false },
+              data: { wrongAnswer: r.userAnswer, updatedAt: now, isResolved: false, nextReview: now },
             });
           } else {
             await prisma.errorBook.create({
-              data: { id: uuid(), questionId: r.questionId, wrongAnswer: r.userAnswer, createdAt: now, updatedAt: now },
+              data: { id: uuid(), questionId: r.questionId, wrongAnswer: r.userAnswer, nextReview: now, createdAt: now, updatedAt: now },
             });
           }
         } catch {}
@@ -177,6 +177,72 @@ examRouter.get('/', async (req: Request, res: Response) => {
     ]);
 
     res.json({ success: true, data: { items, total, page: pageNum, pageSize: size, totalPages: Math.ceil(total / size) } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/exam/compare?paperId=xxx - 同一试卷多次考试对比
+examRouter.get('/compare', async (req: Request, res: Response) => {
+  try {
+    const { paperId } = req.query as Record<string, string>;
+    if (!paperId) return res.status(400).json({ success: false, error: '缺少 paperId' });
+
+    const sessions = await prisma.examSession.findMany({
+      where: { paperId, status: { in: ['completed', 'timeout'] } },
+      orderBy: { completedAt: 'asc' },
+    });
+
+    if (sessions.length === 0) {
+      return res.json({ success: true, data: { sessions: [], questionStats: [] } });
+    }
+
+    // 每道题的得分率统计
+    const paper = await prisma.examPaper.findUnique({
+      where: { id: paperId },
+      include: { questions: { include: { question: true }, orderBy: { order: 'asc' } } },
+    });
+
+    const questionStats = paper?.questions.map((pq, i) => {
+      let correctCount = 0;
+      let totalAttempted = 0;
+      for (const s of sessions) {
+        if (!s.answers) continue;
+        const answers = JSON.parse(s.answers);
+        if (answers[pq.question.id]) {
+          totalAttempted++;
+          const user = answers[pq.question.id].trim().toUpperCase();
+          const correct = pq.question.answer.trim().toUpperCase();
+          if (['choice', 'multi_choice', 'true_false'].includes(pq.question.type)) {
+            if (user === correct) correctCount++;
+          } else {
+            const keywords = correct.split(/[;；\n]/).map(s => s.trim()).filter(Boolean);
+            if (keywords.length > 0 && keywords.every(k => user.includes(k))) correctCount++;
+          }
+        }
+      }
+      return {
+        order: i + 1,
+        questionId: pq.question.id,
+        content: pq.question.content.slice(0, 80),
+        type: pq.question.type,
+        difficulty: pq.question.difficulty,
+        correctRate: totalAttempted > 0 ? Math.round((correctCount / totalAttempted) * 100) : 0,
+        totalAttempted,
+      };
+    }) || [];
+
+    // 趋势数据
+    const trend = sessions.map(s => ({
+      id: s.id,
+      date: s.completedAt ? new Date(s.completedAt * 1000).toISOString().slice(0, 10) : '-',
+      score: s.score,
+      totalScore: s.totalScore,
+      accuracy: s.totalCount > 0 ? Math.round((s.correctCount || 0) / s.totalCount * 100) : 0,
+      timeUsed: s.completedAt && s.startedAt ? s.completedAt - s.startedAt : 0,
+    }));
+
+    res.json({ success: true, data: { sessions: trend, questionStats } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

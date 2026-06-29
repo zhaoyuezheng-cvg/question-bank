@@ -3,13 +3,14 @@ import prisma from '../prisma';
 import { v4 as uuid } from 'uuid';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 export const backupRouter = Router();
 
 // GET /api/backup/export - 导出数据库
 backupRouter.get('/export', async (_req: Request, res: Response) => {
   try {
-    const [questions, papers, paperQuestions, flashcards, examSessions, errorBooks, favorites, practiceRecords, paperTemplates, questionRelations] = await Promise.all([
+    const [questions, papers, paperQuestions, flashcards, examSessions, errorBooks, favorites, practiceRecords, paperTemplates, questionRelations, questionNotes, textbooks, words, studyPlans, studyCheckins] = await Promise.all([
       prisma.question.findMany(),
       prisma.examPaper.findMany(),
       prisma.paperQuestion.findMany(),
@@ -20,6 +21,11 @@ backupRouter.get('/export', async (_req: Request, res: Response) => {
       prisma.practiceRecord.findMany(),
       prisma.paperTemplate.findMany().catch(() => []),
       prisma.questionRelation.findMany().catch(() => []),
+      prisma.questionNote.findMany().catch(() => []),
+      prisma.textbookCatalog.findMany().catch(() => []),
+      prisma.wordBook.findMany().catch(() => []),
+      prisma.studyPlan.findMany().catch(() => []),
+      prisma.studyCheckin.findMany().catch(() => []),
     ]);
 
     const backup = {
@@ -36,6 +42,11 @@ backupRouter.get('/export', async (_req: Request, res: Response) => {
         practiceRecords,
         paperTemplates,
         questionRelations,
+        questionNotes,
+        textbooks,
+        words,
+        studyPlans,
+        studyCheckins,
       },
     };
 

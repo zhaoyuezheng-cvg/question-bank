@@ -151,6 +151,12 @@ const routes = [
     component: () => import('@/views/StudyReportView.vue'),
     meta: { title: '学习报告' },
   },
+  {
+    path: '/challenge',
+    name: 'challenge',
+    component: () => import('@/views/ChallengeView.vue'),
+    meta: { title: '答题闯关' },
+  },
 ];
 
 const router = createRouter({

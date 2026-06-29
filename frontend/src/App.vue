@@ -132,6 +132,12 @@
             </router-link>
           </li>
           <li>
+            <router-link to="/challenge" @click="closeMobile" :title="sidebarCollapsed ? '答题闯关' : ''">
+              <span class="nav-icon">🏆</span>
+              <span v-if="!sidebarCollapsed">答题闯关</span>
+            </router-link>
+          </li>
+          <li>
             <router-link to="/stats" @click="closeMobile" :title="sidebarCollapsed ? '数据分析' : ''">
               <span class="nav-icon">📈</span>
               <span v-if="!sidebarCollapsed">数据分析</span>

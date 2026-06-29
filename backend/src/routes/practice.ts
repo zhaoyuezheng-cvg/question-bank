@@ -59,11 +59,11 @@ practiceRouter.post('/errors', async (req: Request, res: Response) => {
     if (existing) {
       item = await prisma.errorBook.update({
         where: { id: existing.id },
-        data: { wrongAnswer: wrongAnswer || '', errorNote, updatedAt: now, isResolved: false },
+        data: { wrongAnswer: wrongAnswer || '', errorNote, updatedAt: now, isResolved: false, nextReview: now },
       });
     } else {
       item = await prisma.errorBook.create({
-        data: { id: uuid(), questionId, userId, wrongAnswer: wrongAnswer || '', errorNote, createdAt: now, updatedAt: now },
+        data: { id: uuid(), questionId, userId, wrongAnswer: wrongAnswer || '', errorNote, nextReview: now, createdAt: now, updatedAt: now },
       });
     }
 
@@ -102,6 +102,99 @@ practiceRouter.delete('/errors/:id', async (req: Request, res: Response) => {
     }
     await prisma.errorBook.delete({ where: { id: req.params.id } });
     res.json({ success: true, message: '已移除' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/practice/errors/due - 获取今日待复习错题
+practiceRouter.get('/errors/due', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { subject, limit = '20' } = req.query as Record<string, string>;
+    const now = Math.floor(Date.now() / 1000);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit)));
+
+    const where: any = { isResolved: false, nextReview: { lte: now }, userId };
+    if (subject) where.question = { subject };
+
+    const items = await prisma.errorBook.findMany({
+      where,
+      take: limitNum,
+      orderBy: { nextReview: 'asc' },
+      include: { question: true },
+    });
+
+    const parsed = items.map(e => ({
+      ...e,
+      question: {
+        ...e.question,
+        options: e.question.options ? JSON.parse(e.question.options) : undefined,
+        tags: e.question.tags ? JSON.parse(e.question.tags) : [],
+      },
+    }));
+
+    res.json({ success: true, data: parsed });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/practice/errors/:id/review - 错题复习（SM-2）
+practiceRouter.post('/errors/:id/review', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { quality } = req.body; // 0-5
+    if (quality === undefined || quality < 0 || quality > 5) {
+      return res.status(400).json({ success: false, error: 'quality 必须是 0-5 的数字' });
+    }
+
+    const item = await prisma.errorBook.findUnique({ where: { id: req.params.id }, include: { question: true } });
+    if (!item || (item.userId && item.userId !== userId)) {
+      return res.status(403).json({ success: false, error: '无权操作' });
+    }
+
+    // SM-2 algorithm
+    let { easeFactor, interval, repetitions } = item;
+    if (quality >= 3) {
+      if (repetitions === 0) interval = 1;
+      else if (repetitions === 1) interval = 3;
+      else interval = Math.round(interval * easeFactor);
+      repetitions++;
+    } else {
+      repetitions = 0;
+      interval = 1;
+    }
+    easeFactor = easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+    if (easeFactor < 1.3) easeFactor = 1.3;
+
+    const now = Math.floor(Date.now() / 1000);
+    const nextReview = now + interval * 86400;
+    const isResolved = quality >= 4 && repetitions >= 3; // 连续3次且quality>=4才算掌握
+
+    const updated = await prisma.errorBook.update({
+      where: { id: req.params.id },
+      data: { easeFactor, interval, repetitions, nextReview, lastReview: now, isResolved, updatedAt: now },
+    });
+
+    res.json({ success: true, data: { ...updated, nextReviewDate: new Date(nextReview * 1000).toISOString().slice(0, 10) } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/practice/errors/stats - 错题统计
+practiceRouter.get('/errors/stats', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const now = Math.floor(Date.now() / 1000);
+    const [total, unresolved, dueToday, mastered] = await Promise.all([
+      prisma.errorBook.count({ where: { userId } }),
+      prisma.errorBook.count({ where: { userId, isResolved: false } }),
+      prisma.errorBook.count({ where: { userId, isResolved: false, nextReview: { lte: now } } }),
+      prisma.errorBook.count({ where: { userId, isResolved: true } }),
+    ]);
+    res.json({ success: true, data: { total, unresolved, dueToday, mastered } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -205,11 +298,11 @@ practiceRouter.post('/submit', async (req: Request, res: Response) => {
       if (existingError) {
         await prisma.errorBook.update({
           where: { id: existingError.id },
-          data: { wrongAnswer: userAnswer, updatedAt: now, isResolved: false },
+          data: { wrongAnswer: userAnswer, updatedAt: now, isResolved: false, nextReview: now },
         });
       } else {
         await prisma.errorBook.create({
-          data: { id: uuid(), questionId, userId, wrongAnswer: userAnswer, createdAt: now, updatedAt: now },
+          data: { id: uuid(), questionId, userId, wrongAnswer: userAnswer, nextReview: now, createdAt: now, updatedAt: now },
         });
       }
     }

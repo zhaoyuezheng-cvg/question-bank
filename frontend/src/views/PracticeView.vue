@@ -101,7 +101,12 @@
           </span>
         </div>
 
-        <div class="markdown-body q-content" v-html="renderMarkdown(currentQ.content)"></div>
+        <div style="display: flex; align-items: flex-start; gap: 8px;">
+          <div class="markdown-body q-content" v-html="renderMarkdown(currentQ.content)" style="flex: 1;"></div>
+          <button v-if="tts.supported" class="btn btn-sm btn-ghost" @click="tts.speak(currentQ.content)" :title="tts.speaking ? '停止朗读' : '朗读题目'">
+            {{ tts.speaking ? '🔊' : '🔈' }}
+          </button>
+        </div>
 
         <!-- Choice options -->
         <div v-if="currentQ.options?.length" class="options-list">
@@ -245,6 +250,7 @@ import { renderMarkdown } from '@/utils/markdown';
 import { SUBJECT_LABELS, SUBJECT_COLORS, DIFFICULTY_COLORS, getSubjectLabel, getDifficultyLabel, getSubTypesForSubject, getSubTypeLabel, READING_SUB_TYPES } from '@/utils/constants';
 import type { Subject, Difficulty } from 'shared/src/index';
 import { apiGet, apiPost, apiPut, apiDelete } from '@/utils/api';
+import { useTTS } from '@/composables/useTTS';
 
 const started = ref(false);
 const history = ref<{ date: string; total: number; correct: number; accuracy: number }[]>([]);
@@ -271,6 +277,7 @@ const availableSubTypes = computed(() => config.value.subject ? getSubTypesForSu
 const paused = ref(false);
 const shuffledOptions = ref<Record<number, string[]>>({});
 const toast = inject<(type: string, msg: string) => void>('toast')!;
+const tts = useTTS();
 let timer: any = null;
 
 const route = useRoute();

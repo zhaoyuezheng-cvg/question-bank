@@ -237,3 +237,109 @@ aiRouter.post('/import', async (req: Request, res: Response) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// POST /api/ai/generate - AI 根据知识点生成题目
+aiRouter.post('/generate', async (req: Request, res: Response) => {
+  try {
+    const { topic, subject, type, difficulty, count = 5, apiKey, apiBase, model } = req.body;
+    if (!topic) return res.status(400).json({ success: false, error: '请提供知识点/主题' });
+
+    const key = apiKey || process.env.AI_API_KEY;
+    const base = apiBase || process.env.AI_API_BASE || 'https://api.openai.com/v1';
+    const mdl = model || process.env.AI_MODEL || 'gpt-4o-mini';
+    if (!key) return res.status(400).json({ success: false, error: '未配置 AI API Key' });
+
+    const prompt = `请根据以下要求生成 ${count} 道题目：
+- 知识点：${topic}
+- 学科：${subject || '不限'}
+- 题型：${type || '不限'}
+- 难度：${difficulty || '中等'}
+
+输出 JSON 数组，格式：[{"content":"题干","options":["A选项","B选项","C选项","D选项"](选择题才有),"answer":"答案","analysis":"解析","type":"题型","difficulty":1-5}]
+只输出 JSON，不要其他文字。`;
+
+    const response = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify({ model: mdl, messages: [{ role: 'user', content: prompt }], temperature: 0.8 }),
+    });
+    const data = await response.json() as any;
+    const text = data.choices?.[0]?.message?.content || '';
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return res.json({ success: false, error: 'AI 未能生成有效题目' });
+
+    const questions = JSON.parse(jsonMatch[0]);
+    res.json({ success: true, data: { questions } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/ai/explain - AI 详细解题步骤
+aiRouter.post('/explain', async (req: Request, res: Response) => {
+  try {
+    const { content, answer, type, apiKey, apiBase, model } = req.body;
+    if (!content) return res.status(400).json({ success: false, error: '请提供题目内容' });
+
+    const key = apiKey || process.env.AI_API_KEY;
+    const base = apiBase || process.env.AI_API_BASE || 'https://api.openai.com/v1';
+    const mdl = model || process.env.AI_MODEL || 'gpt-4o-mini';
+    if (!key) return res.status(400).json({ success: false, error: '未配置 AI API Key' });
+
+    const prompt = `请为以下题目提供详细的解题步骤和思路分析：
+
+题目：${content}
+${answer ? `参考答案：${answer}` : ''}
+
+请用清晰的步骤解释解题过程，适合学生理解学习。用 Markdown 格式。`;
+
+    const response = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify({ model: mdl, messages: [{ role: 'user', content: prompt }], temperature: 0.3 }),
+    });
+    const data = await response.json() as any;
+    const explanation = data.choices?.[0]?.message?.content || '生成失败';
+    res.json({ success: true, data: { explanation } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/ai/rewrite - AI 改写题目（改变难度/题型）
+aiRouter.post('/rewrite', async (req: Request, res: Response) => {
+  try {
+    const { content, answer, targetDifficulty, targetType, apiKey, apiBase, model } = req.body;
+    if (!content) return res.status(400).json({ success: false, error: '请提供题目内容' });
+
+    const key = apiKey || process.env.AI_API_KEY;
+    const base = apiBase || process.env.AI_API_BASE || 'https://api.openai.com/v1';
+    const mdl = model || process.env.AI_MODEL || 'gpt-4o-mini';
+    if (!key) return res.status(400).json({ success: false, error: '未配置 AI API Key' });
+
+    const prompt = `请将以下题目改写：
+
+原题：${content}
+${answer ? `原答案：${answer}` : ''}
+${targetDifficulty ? `目标难度：${targetDifficulty}` : ''}
+${targetType ? `目标题型：${targetType}` : ''}
+
+输出 JSON：{"content":"新题干","options":[...](选择题才有),"answer":"新答案","analysis":"解析","type":"题型","difficulty":1-5}
+只输出 JSON。`;
+
+    const response = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify({ model: mdl, messages: [{ role: 'user', content: prompt }], temperature: 0.7 }),
+    });
+    const data = await response.json() as any;
+    const text = data.choices?.[0]?.message?.content || '';
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.json({ success: false, error: 'AI 改写失败' });
+
+    const question = JSON.parse(jsonMatch[0]);
+    res.json({ success: true, data: { question } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});

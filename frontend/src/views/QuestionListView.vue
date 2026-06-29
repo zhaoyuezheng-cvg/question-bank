@@ -8,6 +8,7 @@
       <div class="btn-group">
         <button class="btn" @click="handleExport('csv')">📥 CSV</button>
         <button class="btn" @click="handleExport('word')">📥 Word</button>
+        <button class="btn" @click="handleExport('anki')">📥 Anki</button>
         <button v-if="selectedIds.length" class="btn" @click="handleExportSelected">📦 导出选中 ({{ selectedIds.length }})</button>
         <button v-if="selectedIds.length" class="btn" @click="showBatchModal = true">
           ⚡ 批量操作 ({{ selectedIds.length }})
@@ -15,6 +16,7 @@
         <button v-if="selectedIds.length" class="btn btn-danger" @click="handleBatchDelete">
           🗑️ 删除选中 ({{ selectedIds.length }})
         </button>
+        <button class="btn" @click="showHistory = !showHistory">📜 历史</button>
         <router-link to="/questions/new" class="btn btn-primary">➕ 新建题目</router-link>
       </div>
     </div>
@@ -177,6 +179,23 @@
       <button :disabled="store.page <= 1" @click="goPage(store.page - 1)">‹</button>
       <span class="page-info">{{ store.page }} / {{ store.totalPages }} (共 {{ store.total }} 题)</span>
       <button :disabled="store.page >= store.totalPages" @click="goPage(store.page + 1)">›</button>
+      <button v-if="store.page < store.totalPages" class="btn btn-sm" @click="loadMore">加载更多</button>
+    </div>
+    <div ref="sentinelRef" style="height: 1px;"></div>
+
+    <!-- Operation History Panel -->
+    <div v-if="showHistory" class="card" style="margin-top: 16px;">
+      <div class="card-header">
+        <span class="card-title">📜 最近操作</span>
+        <button class="btn btn-sm" @click="loadHistory">刷新</button>
+      </div>
+      <div v-if="!operationLogs.length" style="color: var(--text-muted); padding: 16px;">暂无操作记录</div>
+      <div v-for="log in operationLogs" :key="log.id" style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-light); font-size: 13px;">
+        <span>{{ formatLogAction(log.action) }}</span>
+        <span style="flex: 1; color: var(--text-muted);">{{ log.targetType }} {{ log.targetId?.slice(0, 8) }}...</span>
+        <span style="font-size: 12px; color: var(--text-muted);">{{ new Date(log.createdAt * 1000).toLocaleString('zh-CN') }}</span>
+        <button v-if="log.action === 'delete_question'" class="btn btn-sm" @click="undoOperation(log.id)">↩ 撤销</button>
+      </div>
     </div>
 
     <!-- Batch Update Modal -->
@@ -227,9 +246,13 @@ import type { Difficulty, Subject, QuestionType } from 'shared/src/index';
 const store = useQuestionStore();
 const selectedIds = ref<string[]>([]);
 const showBatchModal = ref(false);
+const showHistory = ref(false);
+const operationLogs = ref<any[]>([]);
 const toast = inject<(type: string, msg: string, duration?: number, action?: any) => void>('toast')!;
 const confirmFn = inject<(opts: any) => Promise<boolean>>('confirm')!;
 const sortBy = ref('updatedAt');
+const sentinelRef = ref<HTMLElement>();
+let observer: IntersectionObserver | null = null;
 
 const filters = ref({
   subject: '',
@@ -267,6 +290,51 @@ function goPage(p: number) {
     sortBy: sortBy.value,
   });
 }
+
+function loadMore() {
+  if (store.page < store.totalPages) {
+    goPage(store.page + 1);
+  }
+}
+
+function formatLogAction(action: string) {
+  const map: Record<string, string> = { delete_question: '🗑️ 删除题目', update_question: '✏️ 修改题目', batch_delete: '🗑️ 批量删除' };
+  return map[action] || action;
+}
+
+async function loadHistory() {
+  const json = await apiGet('/questions/operations/history?limit=20');
+  if (json.success) operationLogs.value = json.data;
+}
+
+async function undoOperation(logId: string) {
+  const json = await apiPost(`/questions/operations/undo/${logId}`);
+  if (json.success) {
+    toast('success', json.message || '已撤销');
+    store.fetchQuestions();
+    loadHistory();
+  } else {
+    toast('error', json.error || '撤销失败');
+  }
+}
+
+onMounted(() => {
+  store.fetchQuestions();
+  loadRecent();
+  loadHistory();
+
+  // Infinite scroll via IntersectionObserver
+  observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && store.page < store.totalPages && !store.loading) {
+      loadMore();
+    }
+  }, { rootMargin: '200px' });
+  if (sentinelRef.value) observer.observe(sentinelRef.value);
+});
+
+// Cleanup
+import { onUnmounted } from 'vue';
+onUnmounted(() => { observer?.disconnect(); });
 
 function toggleAll() {
   if (allSelected.value) {
@@ -326,8 +394,17 @@ async function handleBatchUpdate() {
   }
 }
 
-async function handleExport(format: 'csv' | 'word') {
+async function handleExport(format: 'csv' | 'word' | 'anki') {
   try {
+    if (format === 'anki') {
+      // Anki 导出走后端 API
+      const params = new URLSearchParams();
+      if (filters.value.subject) params.set('subject', filters.value.subject);
+      if (filters.value.type) params.set('type', filters.value.type);
+      window.open(`/api/export/anki?${params}`, '_blank');
+      toast('success', '正在导出 Anki 格式...');
+      return;
+    }
     const params = new URLSearchParams({ pageSize: '1000' });
     if (filters.value.subject) params.set('subject', filters.value.subject);
     if (filters.value.type) params.set('type', filters.value.type);
@@ -378,8 +455,6 @@ function clearRecent() {
   recentQuestions.value = [];
   localStorage.removeItem('qb-recent-questions');
 }
-
-onMounted(() => { store.fetchQuestions(); loadRecent(); });
 </script>
 
 <style scoped>

@@ -105,6 +105,23 @@
           <textarea class="form-textarea" v-model="noteContent" rows="3" placeholder="记录你的理解、易错点、解题思路..." style="font-size: 13px;"></textarea>
           <button v-if="isEdit" class="btn btn-sm" style="margin-top: 6px;" @click="saveNote">💾 保存笔记</button>
         </div>
+
+        <!-- 关联题目 -->
+        <div v-if="isEdit" class="form-group">
+          <label class="form-label">🔗 关联题目 ({{ relatedQuestions.length }})</label>
+          <div v-if="relatedQuestions.length" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;">
+            <div v-for="rq in relatedQuestions" :key="rq.id" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--bg); border-radius: var(--radius-sm); font-size: 13px;">
+              <span class="tag" style="font-size: 10px;">{{ rq.relationType === 'same_knowledge' ? '同知识点' : rq.relationType === 'similar' ? '相似' : '前置' }}</span>
+              <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ rq.content?.slice(0, 60) }}</span>
+              <router-link :to="`/questions/${rq.id}/edit`" class="btn btn-sm btn-ghost">✏️</router-link>
+              <button class="btn btn-sm btn-ghost" style="color: var(--danger);" @click="removeRelation(rq.id)">✕</button>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <input class="form-input" v-model="relateQuestionId" placeholder="输入题目 ID 关联" style="flex: 1;" />
+            <button class="btn btn-sm" @click="addRelation">关联</button>
+          </div>
+        </div>
       </div>
 
       <!-- Right: Preview -->
@@ -137,7 +154,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useQuestionStore } from '@/stores/questionStore';
 import { renderMarkdown } from '@/utils/markdown';
 import { useAutoSave } from '@/composables/useAutoSave';
-import { apiUpload, apiGet, apiPut } from '@/utils/api';
+import { apiUpload, apiGet, apiPut, apiPost, apiDelete } from '@/utils/api';
 import {
   SUBJECT_LABELS, QUESTION_TYPE_LABELS, DIFFICULTY_LABELS,
   getSubTypesForSubject, getSubTypeLabel,
@@ -149,6 +166,8 @@ const router = useRouter();
 const store = useQuestionStore();
 const toast = inject<(type: string, msg: string, duration?: number, action?: any) => void>('toast')!;
 const noteContent = ref('');
+const relatedQuestions = ref<any[]>([]);
+const relateQuestionId = ref('');
 
 const isEdit = computed(() => !!route.params.id);
 const saving = ref(false);
@@ -272,6 +291,27 @@ async function loadNote() {
   if (json.data?.content) noteContent.value = json.data.content;
 }
 
+// 加载关联题目
+async function loadRelations() {
+  if (!isEdit.value) return;
+  const json = await apiGet(`/questions/${route.params.id}/relations`);
+  if (json.success) relatedQuestions.value = json.data;
+}
+
+async function addRelation() {
+  if (!relateQuestionId.value.trim()) return;
+  const json = await apiPost(`/questions/${route.params.id}/relations`, { relatedId: relateQuestionId.value.trim() });
+  if (json.success) {
+    relateQuestionId.value = '';
+    loadRelations();
+  }
+}
+
+async function removeRelation(relatedId: string) {
+  await apiDelete(`/questions/${route.params.id}/relations/${relatedId}`);
+  loadRelations();
+}
+
 async function saveNote() {
   if (!noteContent.value.trim()) { toast('error', '笔记内容不能为空'); return; }
   await apiPut(`/practice/notes/${route.params.id}`, { content: noteContent.value });
@@ -280,6 +320,7 @@ async function saveNote() {
 
 onMounted(async () => {
   loadNote();
+  loadRelations();
   // Check for clone mode
   const cloneId = route.query.clone as string;
   if (cloneId) {

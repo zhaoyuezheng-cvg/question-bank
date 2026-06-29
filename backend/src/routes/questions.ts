@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
 import { v4 as uuid } from 'uuid';
 import { auditLog } from '../utils/audit';
+import { searchQuestions, isFTSAvailable, refreshFTS } from '../utils/fts';
+import { logOperation } from '../utils/operation-log';
 
 export const questionRouter = Router();
 
@@ -26,11 +28,24 @@ questionRouter.get('/', async (req: Request, res: Response) => {
     if (passageId) where.passageId = passageId;
     if (difficulty) where.difficulty = parseInt(difficulty as string);
     if (keyword) {
-      where.OR = [
-        { content: { contains: keyword } },
-        { answer: { contains: keyword } },
-        { analysis: { contains: keyword } },
-      ];
+      if (isFTSAvailable()) {
+        const ftsIds = await searchQuestions(keyword as string, size * 5);
+        if (ftsIds.length > 0) {
+          where.id = { in: ftsIds };
+        } else {
+          // FTS no results, fallback to LIKE
+          where.OR = [
+            { content: { contains: keyword } },
+            { answer: { contains: keyword } },
+          ];
+        }
+      } else {
+        where.OR = [
+          { content: { contains: keyword } },
+          { answer: { contains: keyword } },
+          { analysis: { contains: keyword } },
+        ];
+      }
     }
     if (tags) {
       const tagList = (tags as string).split(',');
@@ -154,6 +169,7 @@ questionRouter.post('/', async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ success: true, data: q });
+    refreshFTS(); // 刷新搜索索引
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -181,6 +197,7 @@ questionRouter.put('/:id', async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: q });
+    refreshFTS();
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -209,8 +226,18 @@ questionRouter.delete('/:id', async (req: Request, res: Response) => {
       });
     }
 
+    // 保存题目数据用于撤销
+    const questionData = await prisma.question.findUnique({ where: { id } });
     await prisma.question.delete({ where: { id } });
+    refreshFTS();
     await auditLog({ userId: (req as any).userId, action: 'delete', target: 'question', targetId: id, ip: req.ip });
+    await logOperation({
+      userId: (req as any).userId,
+      action: 'delete_question',
+      targetType: 'question',
+      targetId: id,
+      detail: JSON.stringify({ before: questionData }),
+    });
     res.json({ success: true, message: '已删除' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -269,6 +296,172 @@ questionRouter.post('/batch-update', async (req: Request, res: Response) => {
 
     const result = await prisma.question.updateMany({ where: { id: { in: ids } }, data });
     res.json({ success: true, data: { updated: result.count } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ---- 操作历史 ----
+
+// GET /api/questions/operations/history - 获取操作历史
+questionRouter.get('/operations/history', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { limit = '50' } = req.query as Record<string, string>;
+    const logs = await prisma.operationLog.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(100, Math.max(1, parseInt(limit))),
+    });
+    res.json({ success: true, data: logs });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/questions/operations/undo/:logId - 撤销操作
+questionRouter.post('/operations/undo/:logId', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const log = await prisma.operationLog.findUnique({ where: { id: req.params.logId } });
+    if (!log || log.userId !== userId) {
+      return res.status(403).json({ success: false, error: '无权操作' });
+    }
+
+    if (log.action === 'delete_question' && log.detail) {
+      const { before } = JSON.parse(log.detail);
+      if (before) {
+        const now = Math.floor(Date.now() / 1000);
+        await prisma.question.create({
+          data: {
+            id: before.id,
+            subject: before.subject,
+            category: before.category,
+            subCategory: before.subCategory,
+            type: before.type,
+            subType: before.subType,
+            difficulty: before.difficulty,
+            content: before.content,
+            options: before.options,
+            answer: before.answer,
+            analysis: before.analysis || '',
+            tags: before.tags,
+            source: before.source,
+            passageId: before.passageId,
+            createdAt: before.createdAt || now,
+            updatedAt: now,
+          },
+        });
+        refreshFTS();
+        // 删除操作日志
+        await prisma.operationLog.delete({ where: { id: log.id } });
+        return res.json({ success: true, message: '已恢复题目' });
+      }
+    }
+
+    res.json({ success: false, error: '该操作不支持撤销' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ---- 题目关联 ----
+
+// GET /api/questions/:id/relations - 获取关联题目
+questionRouter.get('/:id/relations', async (req: Request, res: Response) => {
+  try {
+    const relations = await prisma.questionRelation.findMany({
+      where: { OR: [{ questionId: req.params.id }, { relatedId: req.params.id }] },
+    });
+    const relatedIds = relations.map(r => r.questionId === req.params.id ? r.relatedId : r.questionId);
+    if (relatedIds.length === 0) return res.json({ success: true, data: [] });
+
+    const questions = await prisma.question.findMany({ where: { id: { in: relatedIds } } });
+    const parsed = questions.map(q => ({
+      ...q,
+      options: q.options ? JSON.parse(q.options) : undefined,
+      tags: q.tags ? JSON.parse(q.tags) : [],
+      relationType: relations.find(r => r.questionId === q.id || r.relatedId === q.id)?.relationType,
+    }));
+    res.json({ success: true, data: parsed });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/questions/:id/relations - 添加关联
+questionRouter.post('/:id/relations', async (req: Request, res: Response) => {
+  try {
+    const { relatedId, relationType = 'similar' } = req.body;
+    if (!relatedId) return res.status(400).json({ success: false, error: '缺少 relatedId' });
+    if (relatedId === req.params.id) return res.status(400).json({ success: false, error: '不能关联自己' });
+
+    const now = Math.floor(Date.now() / 1000);
+    const relation = await prisma.questionRelation.upsert({
+      where: { questionId_relatedId: { questionId: req.params.id, relatedId } },
+      update: { relationType },
+      create: { id: uuid(), questionId: req.params.id, relatedId, relationType },
+    });
+    res.json({ success: true, data: relation });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/questions/:id/relations/:relatedId - 删除关联
+questionRouter.delete('/:id/relations/:relatedId', async (req: Request, res: Response) => {
+  try {
+    await prisma.questionRelation.deleteMany({
+      where: {
+        OR: [
+          { questionId: req.params.id, relatedId: req.params.relatedId },
+          { questionId: req.params.relatedId, relatedId: req.params.id },
+        ],
+      },
+    });
+    res.json({ success: true, message: '已删除关联' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/questions/auto-relate - 自动建立关联（同分类+同知识点）
+questionRouter.post('/auto-relate', async (req: Request, res: Response) => {
+  try {
+    const questions = await prisma.question.findMany({
+      select: { id: true, subject: true, category: true, subCategory: true, tags: true },
+    });
+
+    let created = 0;
+    const existing = await prisma.questionRelation.findMany({ select: { questionId: true, relatedId: true } });
+    const existingSet = new Set(existing.map(r => `${r.questionId}:${r.relatedId}`));
+
+    // Group by subject+category+subCategory
+    const groups: Record<string, typeof questions> = {};
+    for (const q of questions) {
+      const key = `${q.subject}:${q.category}:${q.subCategory}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(q);
+    }
+
+    for (const group of Object.values(groups)) {
+      if (group.length < 2) continue;
+      for (let i = 0; i < group.length; i++) {
+        for (let j = i + 1; j < group.length; j++) {
+          const a = group[i], b = group[j];
+          const key1 = `${a.id}:${b.id}`;
+          const key2 = `${b.id}:${a.id}`;
+          if (existingSet.has(key1) || existingSet.has(key2)) continue;
+          await prisma.questionRelation.create({
+            data: { id: uuid(), questionId: a.id, relatedId: b.id, relationType: 'same_knowledge' },
+          });
+          existingSet.add(key1);
+          created++;
+        }
+      }
+    }
+
+    res.json({ success: true, data: { created } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

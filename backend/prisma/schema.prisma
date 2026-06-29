@@ -126,6 +126,12 @@ model ErrorBook {
   wrongAnswer String  // 用户的错误答案
   errorNote   String? // 错误原因备注
   isResolved  Boolean @default(false) // 是否已掌握
+  // SM-2 间隔重复调度
+  easeFactor  Float   @default(2.5)
+  interval    Int     @default(1)    // 当前间隔（天）
+  repetitions Int     @default(0)    // 连续正确次数
+  nextReview  Int     // 下次复习时间（unix timestamp）
+  lastReview  Int?    // 上次复习时间
   createdAt   Int
   updatedAt   Int
 
@@ -135,6 +141,7 @@ model ErrorBook {
   @@index([questionId])
   @@index([isResolved])
   @@index([userId])
+  @@index([nextReview])
 }
 
 // ---- 收藏夹 ----
@@ -284,6 +291,7 @@ model User {
   practiceRecords PracticeRecord[]
   notes           QuestionNote[]
   auditLogs       AuditLog[]
+  operationLogs   OperationLog[]
 }
 
 // ---- 审计日志 ----
@@ -334,6 +342,23 @@ model QuestionRelation {
 }
 
 // ---- 题目笔记 ----
+// ---- 操作日志（用户级） ----
+model OperationLog {
+  id        String @id
+  userId    String
+  action    String   // delete_question, update_question, delete_paper, etc.
+  targetType String  // question, paper, error_book, etc.
+  targetId  String?
+  detail    String?  // JSON: { before, after }
+  createdAt Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
 model QuestionNote {
   id          String @id
   questionId  String

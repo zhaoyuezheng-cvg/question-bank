@@ -9,6 +9,7 @@
         <button class="btn" :class="{ 'btn-primary': mode === 'list' }" @click="mode = 'list'">📋 列表</button>
         <button class="btn" :class="{ 'btn-primary': mode === 'review' }" @click="mode = 'review'; loadReview()">🔄 间隔复习</button>
         <button class="btn" @click="exportErrors">📥 导出</button>
+        <button class="btn" @click="exportErrorBookPDF">📄 导出 PDF</button>
       </div>
     </div>
 
@@ -105,13 +106,19 @@
           <div class="markdown-body" v-html="renderMarkdown(reviewQueue[reviewIdx]?.question?.analysis || '')"></div>
         </div>
 
-        <div style="margin-top: 24px; display: flex; gap: 12px;">
-          <button class="btn btn-lg" style="flex: 1; border-color: var(--danger); color: var(--danger);" @click="reviewAnswer(false)">
-            😵 还是不会
-          </button>
-          <button class="btn btn-lg btn-success" style="flex: 1;" @click="reviewAnswer(true)">
-            ✅ 已掌握
-          </button>
+        <div style="margin-top: 24px;">
+          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px; text-align: center;">评估掌握程度：</div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-lg" style="flex: 1; border-color: var(--danger); color: var(--danger); font-size: 13px;" @click="reviewAnswer(1)">
+              😵 完全忘了
+            </button>
+            <button class="btn btn-lg" style="flex: 1; border-color: var(--warning); color: var(--warning); font-size: 13px;" @click="reviewAnswer(3)">
+              😐 有印象
+            </button>
+            <button class="btn btn-lg btn-success" style="flex: 1; font-size: 13px;" @click="reviewAnswer(5)">
+              😊 记得住
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -151,7 +158,7 @@ async function loadData() {
 async function loadReview() {
   const params = new URLSearchParams({ limit: '20' });
   if (filters.value.subject) params.set('subject', filters.value.subject);
-  const json = await apiGet(`/study/error-review?${params}`);
+  const json = await apiGet(`/practice/errors/due?${params}`);
   if (json.success) {
     reviewQueue.value = json.data;
     reviewIdx.value = 0;
@@ -159,9 +166,9 @@ async function loadReview() {
   }
 }
 
-async function reviewAnswer(isCorrect: boolean) {
+async function reviewAnswer(quality: number) {
   const item = reviewQueue.value[reviewIdx.value];
-  await apiPost(`/study/error-review/${item.id}`, { isCorrect });
+  await apiPost(`/practice/errors/${item.id}/review`, { quality });
 
   if (reviewIdx.value < reviewQueue.value.length - 1) {
     reviewIdx.value++;
@@ -174,7 +181,7 @@ async function reviewAnswer(isCorrect: boolean) {
 }
 
 async function markResolved(e: any) {
-  await apiPut(`/practice/errors/${e.id}`, { isResolved: true });
+  await apiPost(`/practice/errors/${e.id}/review`, { quality: 5 });
   toast('success', '已标记为掌握');
   loadData();
 }
@@ -192,6 +199,11 @@ async function deleteError(id: string) {
 async function addToFlashcard(questionId: string) {
   await apiPost('/flashcards/add', { questionId });
   toast('success', '已加入闪卡');
+}
+
+function exportErrorBookPDF() {
+  const params = filters.value.subject ? `?subject=${filters.value.subject}` : '';
+  window.open(`/api/export/error-book-pdf${params}`, '_blank');
 }
 
 function exportErrors() {

@@ -19,6 +19,8 @@ import { authRouter, authMiddleware } from './routes/auth';
 import { studyRouter } from './routes/study';
 import { textbookRouter } from './routes/textbooks';
 import { wordRouter } from './routes/words';
+import { exportRouter } from './routes/export';
+import { initFTS } from './utils/fts';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -54,6 +56,7 @@ app.use('/api/ai', aiRouter);
 app.use('/api/study', studyRouter);
 app.use('/api/textbooks', textbookRouter);
 app.use('/api/words', wordRouter);
+app.use('/api/export', exportRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -66,6 +69,8 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ success: false, error: err.message });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 题库后端已启动: http://localhost:${PORT}`);
+  // 初始化 FTS5 全文搜索
+  await initFTS();
 });
