@@ -47,9 +47,11 @@ router.beforeEach((to, _from, next) => {
 });
 
 const app = createApp(App);
-app.use(createPinia());
-app.use(router);
+const pinia = createPinia();
+app.use(pinia);
 app.mount('#app');
+// router 在 mount 后注册，确保 Pinia 已激活
+app.use(router);
 
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
