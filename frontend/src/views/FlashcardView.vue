@@ -60,13 +60,14 @@
         </div>
 
         <div class="flashcard-rate" style="margin-top: 24px;">
-          <div class="flashcard-rate-label">你记得怎么样？</div>
+          <div class="flashcard-rate-label">你记得怎么样？（快捷键 1/2/3/4）</div>
           <div class="rate-buttons">
-            <button class="rate-btn rate-again" @click="rate(0)">😵<br>忘了</button>
-            <button class="rate-btn rate-hard" @click="rate(2)">😐<br>困难</button>
-            <button class="rate-btn rate-good" @click="rate(4)">😊<br>记得</button>
-            <button class="rate-btn rate-easy" @click="rate(5)">🤩<br>简单</button>
+            <button class="rate-btn rate-again" @click="rate(0)">😵<br>忘了 <kbd>1</kbd></button>
+            <button class="rate-btn rate-hard" @click="rate(2)">😐<br>困难 <kbd>2</kbd></button>
+            <button class="rate-btn rate-good" @click="rate(4)">😊<br>记得 <kbd>3</kbd></button>
+            <button class="rate-btn rate-easy" @click="rate(5)">🤩<br>简单 <kbd>4</kbd></button>
           </div>
+          <div style="margin-top: 10px; font-size: 11px; color: var(--text-muted);">← → 切卡 · Space 显示答案</div>
         </div>
       </div>
     </div>
@@ -121,7 +122,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { renderMarkdown } from '@/utils/markdown';
 import { SUBJECT_LABELS, getSubjectLabel } from '@/utils/constants';
 import { apiGet, apiPost, apiDelete } from '@/utils/api';
@@ -191,7 +192,40 @@ async function removeFlashcard(id: string) {
   await loadStats();
 }
 
-onMounted(() => { loadDue(); loadStats(); });
+function navigateCard(dir: number) {
+  const newIdx = currentCardIdx.value + dir;
+  if (newIdx >= 0 && newIdx < dueCards.value.length) {
+    currentCardIdx.value = newIdx;
+    showAnswer.value = false;
+  }
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (mode.value !== 'study') return;
+  const tag = (e.target as HTMLElement)?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+  if (e.key === '1') { e.preventDefault(); rate(0); }
+  else if (e.key === '2') { e.preventDefault(); rate(2); }
+  else if (e.key === '3') { e.preventDefault(); rate(4); }
+  else if (e.key === '4') { e.preventDefault(); rate(5); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); navigateCard(-1); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); navigateCard(1); }
+  else if (e.key === ' ' || e.key === 'Enter') {
+    e.preventDefault();
+    if (!showAnswer.value) showAnswer.value = true;
+  }
+}
+
+onMounted(() => {
+  loadDue();
+  loadStats();
+  window.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown);
+});
 </script>
 
 <style scoped>

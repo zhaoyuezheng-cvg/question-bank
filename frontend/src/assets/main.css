@@ -1094,18 +1094,50 @@ body {
   .btn,
   .pagination,
   .no-print,
-  .toast-container {
+  .toast-container,
+  .mobile-menu-btn,
+  .sidebar-section,
+  .sidebar-footer,
+  .sidebar-brand {
     display: none !important;
   }
 
   .main-content {
     margin-left: 0;
-    padding: 0;
+    padding: 0 !important;
+    max-width: 100%;
   }
 
   .card {
     box-shadow: none;
     border: 1px solid #ddd;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .data-table {
+    font-size: 12px;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 6px 8px;
+  }
+
+  .data-table .btn-group {
+    display: none !important;
+  }
+
+  body {
+    font-size: 13px;
+  }
+
+  .page-title {
+    font-size: 18px;
+  }
+
+  .stat-card,
+  .stat-card-sm {
     break-inside: avoid;
   }
 }

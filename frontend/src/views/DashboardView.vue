@@ -126,11 +126,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, inject } from 'vue';
 import * as echarts from 'echarts';
 import { getSubjectLabel, SUBJECT_COLORS, DIFFICULTY_LABELS, DIFFICULTY_COLORS, QUESTION_TYPE_LABELS } from '@/utils/constants';
 import type { Subject, Difficulty, QuestionType } from 'shared/src/index';
 import { apiGet } from '@/utils/api';
+import { useWebSocket } from '@/composables/useWebSocket';
+
+const { on: onWS } = useWebSocket();
+const toast = inject<(type: string, msg: string) => void>('toast')!;
 
 const pieChartRef = ref<HTMLElement>();
 const barChartRef = ref<HTMLElement>();
@@ -299,7 +303,7 @@ onUnmounted(() => {
   if (resizeHandler) window.removeEventListener('resize', resizeHandler);
 });
 
-onMounted(async () => {
+async function loadDashboardData() {
   try {
     const [qJson, pJson] = await Promise.all([
       apiGet('/questions?pageSize=1'),
@@ -322,7 +326,6 @@ onMounted(async () => {
       initCharts();
     }
 
-    // 加载待复习数量
     const [fcStats, errStats] = await Promise.all([
       apiGet('/flashcards/stats'),
       apiGet('/practice/errors/stats'),
@@ -330,7 +333,6 @@ onMounted(async () => {
     if (fcStats.success) reviewInfo.value.flashcardDue = fcStats.data?.due || 0;
     if (errStats.success) reviewInfo.value.errorDue = errStats.data?.dueToday || 0;
 
-    // 加载今日/本周统计
     try {
       const reportJson = await apiGet('/study/report?days=7');
       if (reportJson.success) {
@@ -343,7 +345,6 @@ onMounted(async () => {
       }
     } catch {}
 
-    // 加载学习日历数据
     try {
       const calJson = await apiGet('/study/report?days=90');
       if (calJson.success && calendarRef.value) {
@@ -352,9 +353,17 @@ onMounted(async () => {
     } catch {}
   } catch (e) {
     console.error('Dashboard load error:', e);
-  } finally {
-    loading.value = false;
   }
+}
+
+onMounted(async () => {
+  onWS('import_complete', (data: any) => {
+    toast('success', `📥 新导入了 ${data.count} 道题目！`);
+    loadDashboardData();
+  });
+
+  await loadDashboardData();
+  loading.value = false;
 });
 </script>
 

@@ -103,8 +103,24 @@ async function search(q: string) {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
+    // 解析高级搜索语法: subject:数学 difficulty:3 type:choice
+    const params = new URLSearchParams();
+    let keyword = q;
+    const filters = q.match(/(\w+):(\S+)/g);
+    if (filters) {
+      for (const f of filters) {
+        const [key, val] = f.split(':');
+        if (['subject', 'type', 'difficulty', 'category'].includes(key)) {
+          params.set(key, val);
+          keyword = keyword.replace(f, '').trim();
+        }
+      }
+    }
+    if (keyword) params.set('keyword', keyword);
+    params.set('pageSize', '8');
+
     const [qRes, pRes] = await Promise.all([
-      fetch(`/api/questions?keyword=${encodeURIComponent(q)}&pageSize=8`, { headers }),
+      fetch(`/api/questions?${params}`, { headers }),
       fetch(`/api/papers?pageSize=5`, { headers }),
     ]);
     const qJson = await qRes.json();

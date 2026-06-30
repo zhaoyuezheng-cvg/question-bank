@@ -181,6 +181,20 @@ questionRouter.put('/:id', async (req: Request, res: Response) => {
     const body = req.body;
     const now = Math.floor(Date.now() / 1000);
 
+    // 保存版本历史
+    const before = await prisma.question.findUnique({ where: { id: req.params.id } });
+    if (before) {
+      await prisma.questionVersion.create({
+        data: {
+          id: uuid(),
+          questionId: before.id,
+          data: JSON.stringify(before),
+          changedBy: (req as any).userId,
+          changedAt: now,
+        },
+      }).catch(() => {}); // 忽略版本记录失败
+    }
+
     // Whitelist allowed fields
     const allowed = ['subject', 'category', 'subCategory', 'type', 'subType', 'difficulty', 'content', 'answer', 'analysis', 'source', 'passageId'];
     const data: any = {};
@@ -425,6 +439,24 @@ questionRouter.delete('/:id/relations/:relatedId', async (req: Request, res: Res
       },
     });
     res.json({ success: true, message: '已删除关联' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/questions/:id/versions - 获取题目版本历史
+questionRouter.get('/:id/versions', async (req: Request, res: Response) => {
+  try {
+    const versions = await prisma.questionVersion.findMany({
+      where: { questionId: req.params.id },
+      orderBy: { changedAt: 'desc' },
+      take: 20,
+    });
+    const parsed = versions.map(v => ({
+      ...v,
+      data: JSON.parse(v.data),
+    }));
+    res.json({ success: true, data: parsed });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

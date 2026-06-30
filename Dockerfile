@@ -51,7 +51,6 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV JWT_SECRET=change-me-in-production
 ENV DATABASE_URL=file:/app/data/question-bank.db
-
 EXPOSE 3000
 
 # 健康检查

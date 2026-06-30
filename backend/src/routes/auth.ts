@@ -292,3 +292,54 @@ authRouter.get('/audit-logs', async (req: Request, res: Response) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// POST /api/auth/change-password - 修改密码
+authRouter.post('/change-password', async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: '请先登录' });
+    }
+    const decoded = verifyToken(authHeader.slice(7));
+    if (!decoded) {
+      return res.status(401).json({ success: false, error: '登录已过期' });
+    }
+
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: '请填写当前密码和新密码' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ success: false, error: '新密码至少8位' });
+    }
+    if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      return res.status(400).json({ success: false, error: '新密码需包含字母和数字' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!user) {
+      return res.status(404).json({ success: false, error: '用户不存在' });
+    }
+
+    // 验证当前密码
+    const [salt, storedHash] = user.passwordHash.split(':');
+    const hash = crypto.scryptSync(oldPassword, salt, 64).toString('hex');
+    if (hash !== storedHash) {
+      return res.status(401).json({ success: false, error: '当前密码错误' });
+    }
+
+    // 更新密码
+    const newSalt = crypto.randomBytes(16).toString('hex');
+    const newHash = crypto.scryptSync(newPassword, newSalt, 64).toString('hex');
+    await prisma.user.update({
+      where: { id: decoded.userId },
+      data: { passwordHash: `${newSalt}:${newHash}` },
+    });
+
+    await auditLog({ userId: decoded.userId, action: 'update', target: 'user', targetId: decoded.userId, detail: '修改密码', ip: req.ip });
+
+    res.json({ success: true, message: '密码修改成功' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});

@@ -152,6 +152,18 @@
         </ul>
       </div>
 
+      <div class="sidebar-section">
+        <div v-if="!sidebarCollapsed" class="sidebar-section-label">系统</div>
+        <ul class="sidebar-nav">
+          <li>
+            <router-link to="/settings" @click="closeMobile" :title="sidebarCollapsed ? '设置' : ''">
+              <span class="nav-icon">⚙️</span>
+              <span v-if="!sidebarCollapsed">设置</span>
+            </router-link>
+          </li>
+        </ul>
+      </div>
+
       <div class="sidebar-footer">
         <div v-if="!sidebarCollapsed" class="sidebar-shortcuts">
           <div class="shortcut-hint"><kbd>N</kbd> 新建题目</div>

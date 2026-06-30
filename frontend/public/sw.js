@@ -1,5 +1,6 @@
 // Service Worker for PWA offline support
-const CACHE_NAME = 'question-bank-v1';
+// 使用构建时间戳作为缓存版本，确保每次部署自动清理旧缓存
+const CACHE_NAME = `question-bank-${Date.now()}`;
 const STATIC_ASSETS = [
   '/',
   '/index.html',

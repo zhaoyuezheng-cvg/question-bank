@@ -24,6 +24,8 @@ import { initFTS } from './utils/fts';
 import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './swagger';
+import { createServer } from 'http';
+import { initWebSocket, broadcast } from './ws';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -111,3 +113,13 @@ app.listen(PORT, async () => {
   console.log(`📖 API 文档: http://localhost:${PORT}/api/docs`);
   await initFTS();
 });
+
+// WebSocket
+const server = createServer(app);
+initWebSocket(server);
+server.listen(Number(PORT) + 1, () => {
+  console.log(`🔌 WebSocket 已启动: ws://localhost:${Number(PORT) + 1}/ws`);
+});
+
+// 导出 broadcast 供路由使用
+export { broadcast };

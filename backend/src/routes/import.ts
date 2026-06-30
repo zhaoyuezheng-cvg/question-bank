@@ -6,8 +6,54 @@ import XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
 import { refreshFTS } from '../utils/fts';
+import { broadcast } from '../ws';
 
 export const importRouter = Router();
+
+// POST /api/import/preview - 预览导入（解析但不保存）
+importRouter.post('/preview', async (req: Request, res: Response) => {
+  try {
+    const { text, subject, category, subCategory } = req.body;
+    if (!text) return res.status(400).json({ success: false, error: '缺少 text 字段' });
+
+    const questions = parseImportText(text, subject || 'chinese', category || '', subCategory || '');
+
+    // Check duplicates
+    const results = await Promise.all(questions.map(async (q) => {
+      const existing = await prisma.question.findFirst({
+        where: { subject: q.subject, type: q.type, content: q.content.trim() },
+        select: { id: true },
+      });
+      return { ...q, isDuplicate: !!existing };
+    }));
+
+    res.json({ success: true, data: { questions: results, total: results.length, duplicates: results.filter(q => q.isDuplicate).length } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/import/template - 下载 Excel 模板
+importRouter.get('/template', (_req: Request, res: Response) => {
+  try {
+    const templateData = [
+      { '学科': '语文', '题型': '单选题', '分类': '基础知识', '难度': 3, '题干': '下列词语中加点字读音全部正确的一项是（）', '选项': 'A. 踹(chuài)水;B. 筵(yàn)席;C. 拾(shè)级;D. 舳(zhú)舻', '答案': 'C', '解析': 'A项踹chuài水正确；B项筵yán席；D项舳zhú舻', '标签': '字音,高考真题', '来源': '2024全国甲卷' },
+      { '学科': '数学', '题型': '填空题', '分类': '函数', '难度': 2, '题干': '已知f(x)=2x+1，则f(3)=___', '选项': '', '答案': '7', '解析': '将x=3代入，f(3)=2×3+1=7', '标签': '函数求值', '来源': '' },
+      { '学科': '英语', '题型': '短答题', '分类': '阅读理解', '难度': 3, '题干': 'Read the passage and answer: What is the main idea?', '选项': '', '答案': 'The main idea is about environmental protection.', '解析': '主旨大意题，关注首尾段', '标签': '主旨大意', '来源': '' },
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '题目模板');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="question-bank-template.xlsx"');
+    res.send(buffer);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // 文件上传配置
 const upload = multer({
@@ -81,7 +127,10 @@ importRouter.post('/text', async (req: Request, res: Response) => {
       success: true,
       data: { total: questions.length, success, failed, skipped, errors },
     });
-    if (success > 0) refreshFTS();
+    if (success > 0) {
+      refreshFTS();
+      broadcast('import_complete', { count: success, subject: req.body.subject });
+    }
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

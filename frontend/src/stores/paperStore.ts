@@ -1,8 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { ExamPaper } from 'shared/src/index';
-
-const API = '/api/papers';
+import { apiGet, apiPost, apiPut, apiDelete } from '@/utils/api';
 
 export const usePaperStore = defineStore('papers', () => {
   const papers = ref<ExamPaper[]>([]);
@@ -18,8 +17,7 @@ export const usePaperStore = defineStore('papers', () => {
       params.set('pageSize', String(pageSize));
       if (subject) params.set('subject', subject);
 
-      const res = await fetch(`${API}?${params}`);
-      const json = await res.json();
+      const json = await apiGet(`/papers?${params}`);
       if (json.success) {
         papers.value = json.data.items;
         total.value = json.data.total;
@@ -30,37 +28,25 @@ export const usePaperStore = defineStore('papers', () => {
   }
 
   async function fetchPaper(id: string) {
-    const res = await fetch(`${API}/${id}`);
-    const json = await res.json();
+    const json = await apiGet(`/papers/${id}`);
     if (json.success) currentPaper.value = json.data;
     return json.data;
   }
 
   async function createPaper(data: Partial<ExamPaper> & { questionIds?: string[] }) {
-    const res = await fetch(API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    const json = await res.json();
+    const json = await apiPost('/papers', data);
     if (json.success) await fetchPapers();
     return json;
   }
 
   async function updatePaper(id: string, data: Partial<ExamPaper> & { questionIds?: string[] }) {
-    const res = await fetch(`${API}/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    const json = await res.json();
+    const json = await apiPut(`/papers/${id}`, data);
     if (json.success) await fetchPapers();
     return json;
   }
 
   async function deletePaper(id: string) {
-    const res = await fetch(`${API}/${id}`, { method: 'DELETE' });
-    const json = await res.json();
+    const json = await apiDelete(`/papers/${id}`);
     if (json.success) await fetchPapers();
     return json;
   }

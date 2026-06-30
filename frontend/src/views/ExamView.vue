@@ -283,21 +283,26 @@ async function startExam() {
       currentIdx.value = 0;
       timeRemaining.value = json.data.timeLimit * 60;
       lastWarnSecond = -1;
-      timer = setInterval(() => {
-        timeRemaining.value--;
-        // Sound alerts at 5min, 1min, 10s
-        if (timeRemaining.value === 300 && lastWarnSecond !== 300) { playBeep(2); lastWarnSecond = 300; }
-        if (timeRemaining.value === 60 && lastWarnSecond !== 60) { playBeep(3); lastWarnSecond = 60; }
-        if (timeRemaining.value === 10 && lastWarnSecond !== 10) { playBeep(5); lastWarnSecond = 10; }
-        if (timeRemaining.value <= 0) {
-          clearInterval(timer);
-          submitExam(true);
-        }
-      }, 1000);
+      saveExamState();
+      startTimer();
     }
   } finally {
     loading.value = false;
   }
+}
+
+function startTimer() {
+  timer = setInterval(() => {
+    timeRemaining.value--;
+    saveExamState();
+    if (timeRemaining.value === 300 && lastWarnSecond !== 300) { playBeep(2); lastWarnSecond = 300; }
+    if (timeRemaining.value === 60 && lastWarnSecond !== 60) { playBeep(3); lastWarnSecond = 60; }
+    if (timeRemaining.value === 10 && lastWarnSecond !== 10) { playBeep(5); lastWarnSecond = 10; }
+    if (timeRemaining.value <= 0) {
+      clearInterval(timer);
+      submitExam(true);
+    }
+  }, 1000);
 }
 
 function playBeep(count: number) {
@@ -326,6 +331,7 @@ async function submitExam(forceTimeout: boolean) {
   }
 
   if (timer) clearInterval(timer);
+  clearExamState();
 
   const json = await apiPost(`/exam/${session.value.sessionId}/submit`, { answers: answers.value, forceTimeout });
   if (json.success) {
@@ -369,6 +375,49 @@ function reset() {
   answers.value = {};
   currentIdx.value = 0;
   if (timer) clearInterval(timer);
+  clearExamState();
+}
+
+// ---- 考试状态持久化 ----
+const EXAM_STATE_KEY = 'qb-exam-state';
+
+function saveExamState() {
+  if (session.value?.status !== 'in_progress') return;
+  try {
+    localStorage.setItem(EXAM_STATE_KEY, JSON.stringify({
+      session: session.value,
+      answers: answers.value,
+      currentIdx: currentIdx.value,
+      timeRemaining: timeRemaining.value,
+      savedAt: Date.now(),
+    }));
+  } catch {}
+}
+
+function restoreExamState() {
+  try {
+    const saved = localStorage.getItem(EXAM_STATE_KEY);
+    if (!saved) return false;
+    const state = JSON.parse(saved);
+    if (!state.session || state.session.status !== 'in_progress') { clearExamState(); return false; }
+    const elapsed = Math.floor((Date.now() - state.savedAt) / 1000);
+    const remaining = state.timeRemaining - elapsed;
+    if (remaining <= 0) { clearExamState(); return false; }
+    session.value = state.session;
+    answers.value = state.answers || {};
+    currentIdx.value = state.currentIdx || 0;
+    timeRemaining.value = remaining;
+    lastWarnSecond = -1;
+    startTimer();
+    return true;
+  } catch {
+    clearExamState();
+    return false;
+  }
+}
+
+function clearExamState() {
+  localStorage.removeItem(EXAM_STATE_KEY);
 }
 
 function handleBeforeUnload(e: BeforeUnloadEvent) {
@@ -378,7 +427,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
   }
 }
 
-onMounted(() => { loadPapers(); loadHistory(); window.addEventListener('keydown', handleKeydown); window.addEventListener('beforeunload', handleBeforeUnload); });
+onMounted(() => { restoreExamState(); loadPapers(); loadHistory(); window.addEventListener('keydown', handleKeydown); window.addEventListener('beforeunload', handleBeforeUnload); });
 onUnmounted(() => { if (timer) clearInterval(timer); window.removeEventListener('keydown', handleKeydown); window.removeEventListener('beforeunload', handleBeforeUnload); });
 </script>
 

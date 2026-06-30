@@ -157,6 +157,12 @@ const routes = [
     component: () => import('@/views/ChallengeView.vue'),
     meta: { title: '答题闯关' },
   },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: () => import('@/views/SettingsView.vue'),
+    meta: { title: '设置' },
+  },
 ];
 
 const router = createRouter({

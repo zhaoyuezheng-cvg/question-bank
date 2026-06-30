@@ -1,8 +1,7 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import type { Question, QuestionFilter, PaginatedResponse } from 'shared/src/index';
-
-const API = '/api/questions';
+import { apiGet, apiPost, apiPut, apiDelete } from '@/utils/api';
 
 export const useQuestionStore = defineStore('questions', () => {
   const questions = ref<Question[]>([]);
@@ -34,13 +33,11 @@ export const useQuestionStore = defineStore('questions', () => {
       params.set('page', String(page.value));
       params.set('pageSize', String(pageSize.value));
 
-      const res = await fetch(`${API}?${params}`);
-      const json = await res.json();
+      const json = await apiGet<PaginatedResponse<Question>>(`/questions?${params}`);
       if (json.success) {
-        const data: PaginatedResponse<Question> = json.data;
-        questions.value = data.items;
-        total.value = data.total;
-        totalPages.value = data.totalPages;
+        questions.value = json.data!.items;
+        total.value = json.data!.total;
+        totalPages.value = json.data!.totalPages;
       }
     } finally {
       loading.value = false;
@@ -48,50 +45,33 @@ export const useQuestionStore = defineStore('questions', () => {
   }
 
   async function fetchQuestion(id: string) {
-    const res = await fetch(`${API}/${id}`);
-    const json = await res.json();
+    const json = await apiGet<Question>(`/questions/${id}`);
     if (json.success) {
-      currentQuestion.value = json.data;
+      currentQuestion.value = json.data!;
     }
     return json.data;
   }
 
   async function createQuestion(data: Partial<Question>) {
-    const res = await fetch(API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    const json = await res.json();
+    const json = await apiPost('/questions', data);
     if (json.success) await fetchQuestions();
     return json;
   }
 
   async function updateQuestion(id: string, data: Partial<Question>) {
-    const res = await fetch(`${API}/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    const json = await res.json();
+    const json = await apiPut(`/questions/${id}`, data);
     if (json.success) await fetchQuestions();
     return json;
   }
 
   async function deleteQuestion(id: string) {
-    const res = await fetch(`${API}/${id}`, { method: 'DELETE' });
-    const json = await res.json();
+    const json = await apiDelete(`/questions/${id}`);
     if (json.success) await fetchQuestions();
     return json;
   }
 
   async function batchDelete(ids: string[]) {
-    const res = await fetch(`${API}/batch-delete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids }),
-    });
-    const json = await res.json();
+    const json = await apiPost('/questions/batch-delete', { ids });
     if (json.success) await fetchQuestions();
     return json;
   }

@@ -14,15 +14,23 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    hmr: {
-      // 如果浏览器通过 IP 或远程访问，去掉下面这行的注释并改为实际地址
-      // clientPort: 5173,
-    },
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
     },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'echarts': ['echarts'],
+          'vendor': ['vue', 'vue-router', 'pinia'],
+          'markdown': ['markdown-it', 'katex'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
   },
 });

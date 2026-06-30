@@ -93,10 +93,34 @@ A. 踹（chuài）水   B. 筵（yàn）席
       </div>
 
       <div class="btn-group">
-        <button class="btn btn-primary" @click="handleImport" :disabled="canImport">
-          {{ importing ? '导入中...' : '🚀 开始导入' }}
+        <button class="btn btn-primary" @click="handlePreview" :disabled="canImport" v-if="!previewData">
+          👁️ 预览解析
+        </button>
+        <button class="btn btn-primary" @click="handleImport" :disabled="canImport" v-if="previewData">
+          {{ importing ? '导入中...' : '🚀 确认导入' }}
         </button>
         <button class="btn" @click="clearAll">清空</button>
+        <button class="btn" @click="downloadTemplate">📥 下载 Excel 模板</button>
+      </div>
+    </div>
+
+    <!-- Preview -->
+    <div v-if="previewData" class="card" style="margin-top: 20px;">
+      <div class="card-header">
+        <span class="card-title">👁️ 导入预览（{{ previewData.total }} 道题）</span>
+        <span v-if="previewData.duplicates > 0" style="color: var(--warning); font-size: 13px;">⚠️ {{ previewData.duplicates }} 道重复题目将被跳过</span>
+      </div>
+      <div style="max-height: 400px; overflow-y: auto;">
+        <div v-for="(q, i) in previewData.questions" :key="i" style="padding: 10px; border-bottom: 1px solid var(--border-light); font-size: 13px;" :style="{ opacity: q.isDuplicate ? 0.5 : 1 }">
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 4px;">
+            <span style="font-weight: 600;">{{ i + 1 }}.</span>
+            <span class="tag" style="font-size: 11px;">{{ q.subject }}</span>
+            <span class="tag" style="font-size: 11px;">{{ q.type }}</span>
+            <span v-if="q.isDuplicate" class="tag" style="font-size: 11px; background: var(--warning-light); color: var(--warning);">重复</span>
+          </div>
+          <div style="color: var(--text-secondary);">{{ q.content?.slice(0, 120) }}{{ q.content?.length > 120 ? '...' : '' }}</div>
+          <div style="color: var(--success); font-size: 12px; margin-top: 2px;">答案：{{ q.answer?.slice(0, 50) }}</div>
+        </div>
       </div>
     </div>
 
@@ -152,6 +176,7 @@ const defaultCategory = ref('');
 const defaultSubCategory = ref('');
 const importing = ref(false);
 const result = ref<ImportResult | null>(null);
+const previewData = ref<any>(null);
 const fileName = ref('');
 const fileInput = ref<HTMLInputElement>();
 
@@ -295,7 +320,32 @@ async function handleImport() {
 function clearAll() {
   importText.value = '';
   result.value = null;
+  previewData.value = null;
   fileName.value = '';
+}
+
+async function handlePreview() {
+  if (!importText.value.trim()) { toast('error', '请先输入或粘贴题目文本'); return; }
+  try {
+    const json = await apiPost('/import/preview', {
+      text: importText.value,
+      subject: defaultSubject.value,
+      category: defaultCategory.value,
+      subCategory: defaultSubCategory.value,
+    });
+    if (json.success) {
+      previewData.value = json.data;
+      toast('success', `识别到 ${json.data.total} 道题，${json.data.duplicates} 道重复`);
+    } else {
+      toast('error', json.error || '预览失败');
+    }
+  } catch {
+    toast('error', '预览失败');
+  }
+}
+
+function downloadTemplate() {
+  window.open('/api/import/template', '_blank');
 }
 </script>
 

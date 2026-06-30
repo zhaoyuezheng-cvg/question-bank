@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL") || "file:./data/question-bank.db"
+  url      = "file:./data/question-bank.db"
 }
 
 model Question {
@@ -34,6 +34,7 @@ model Question {
   flashcards      Flashcard[]
   practiceRecords PracticeRecord[]
   notes           QuestionNote[]
+  versions        QuestionVersion[]
 
   @@index([subject])
   @@index([category])
@@ -374,4 +375,17 @@ model QuestionNote {
   @@unique([questionId, userId])
   @@index([questionId])
   @@index([userId])
+}
+
+model QuestionVersion {
+  id          String @id
+  questionId  String
+  data        String   // JSON: 完整题目快照
+  changedBy   String?  // 操作用户ID
+  changedAt   Int
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([changedAt])
 }
