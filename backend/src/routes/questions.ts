@@ -278,6 +278,7 @@ questionRouter.post('/batch-delete', async (req: Request, res: Response) => {
     }
 
     const result = await prisma.question.deleteMany({ where: { id: { in: ids } } });
+    refreshFTS();
     await auditLog({ userId: (req as any).userId, action: 'batch_delete', target: 'question', detail: `删除 ${result.count} 道题`, ip: req.ip });
     res.json({ success: true, data: { deleted: result.count } });
   } catch (err: any) {

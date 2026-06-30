@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
 import { v4 as uuid } from 'uuid';
+import { refreshFTS } from '../utils/fts';
 
 export const aiRouter = Router();
 
@@ -233,6 +234,7 @@ aiRouter.post('/import', async (req: Request, res: Response) => {
     }
 
     res.json({ success: true, data: { success, failed, errors, passageId } });
+    if (success > 0) refreshFTS();
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

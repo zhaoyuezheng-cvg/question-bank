@@ -10,6 +10,7 @@
         <button class="btn" :class="{ 'btn-primary': mode === 'review' }" @click="mode = 'review'; loadReview()">🔄 间隔复习</button>
         <button class="btn" @click="exportErrors">📥 导出</button>
         <button class="btn" @click="exportErrorBookPDF">📄 导出 PDF</button>
+        <button class="btn" @click="exportErrorBookWord">📝 导出 Word</button>
       </div>
     </div>
 
@@ -107,18 +108,21 @@
         </div>
 
         <div style="margin-top: 24px;">
-          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px; text-align: center;">评估掌握程度：</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px; text-align: center;">评估掌握程度（快捷键 1/2/3）：</div>
           <div style="display: flex; gap: 8px;">
             <button class="btn btn-lg" style="flex: 1; border-color: var(--danger); color: var(--danger); font-size: 13px;" @click="reviewAnswer(1)">
-              😵 完全忘了
+              😵 完全忘了 <kbd style="font-size: 10px; opacity: 0.6; margin-left: 4px;">1</kbd>
             </button>
             <button class="btn btn-lg" style="flex: 1; border-color: var(--warning); color: var(--warning); font-size: 13px;" @click="reviewAnswer(3)">
-              😐 有印象
+              😐 有印象 <kbd style="font-size: 10px; opacity: 0.6; margin-left: 4px;">2</kbd>
             </button>
             <button class="btn btn-lg btn-success" style="flex: 1; font-size: 13px;" @click="reviewAnswer(5)">
-              😊 记得住
+              😊 记得住 <kbd style="font-size: 10px; opacity: 0.6; margin-left: 4px;">3</kbd>
             </button>
           </div>
+        </div>
+        <div style="margin-top: 12px; text-align: center; font-size: 11px; color: var(--text-muted);">
+          ← 上一题 · → 下一题 · Space 显示答案
         </div>
       </div>
     </div>
@@ -126,7 +130,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, inject } from 'vue';
+import { ref, onMounted, onUnmounted, inject } from 'vue';
 import { renderMarkdown } from '@/utils/markdown';
 import {
   SUBJECT_LABELS, SUBJECT_COLORS, DIFFICULTY_COLORS,
@@ -180,6 +184,30 @@ async function reviewAnswer(quality: number) {
   }
 }
 
+function reviewNavigate(dir: number) {
+  const newIdx = reviewIdx.value + dir;
+  if (newIdx >= 0 && newIdx < reviewQueue.value.length) {
+    reviewIdx.value = newIdx;
+    showReviewAnswer.value = false;
+  }
+}
+
+function handleReviewKeydown(e: KeyboardEvent) {
+  if (mode.value !== 'review') return;
+  const tag = (e.target as HTMLElement)?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+  if (e.key === '1') { e.preventDefault(); reviewAnswer(1); }
+  else if (e.key === '2') { e.preventDefault(); reviewAnswer(3); }
+  else if (e.key === '3') { e.preventDefault(); reviewAnswer(5); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); reviewNavigate(-1); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); reviewNavigate(1); }
+  else if (e.key === ' ' || e.key === 'Enter') {
+    e.preventDefault();
+    if (!showReviewAnswer.value) showReviewAnswer.value = true;
+  }
+}
+
 async function markResolved(e: any) {
   await apiPost(`/practice/errors/${e.id}/review`, { quality: 5 });
   toast('success', '已标记为掌握');
@@ -225,7 +253,19 @@ function exportErrors() {
   URL.revokeObjectURL(url);
 }
 
-onMounted(loadData);
+function exportErrorBookWord() {
+  const params = filters.value.subject ? `?subject=${filters.value.subject}` : '';
+  window.open(`/api/export/errors/word${params}`, '_blank');
+}
+
+onMounted(() => {
+  loadData();
+  window.addEventListener('keydown', handleReviewKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleReviewKeydown);
+});
 </script>
 
 <style scoped>

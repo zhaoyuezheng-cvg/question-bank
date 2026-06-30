@@ -257,7 +257,7 @@ studyRouter.get('/report', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     const { days = '7' } = req.query as Record<string, string>;
-    const daysNum = Math.min(30, Math.max(1, parseInt(days)));
+    const daysNum = Math.min(90, Math.max(1, parseInt(days)));
     const now = Math.floor(Date.now() / 1000);
     const since = now - daysNum * 86400;
 

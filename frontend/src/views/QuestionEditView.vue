@@ -82,7 +82,9 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label">解析</label>
+          <label class="form-label">解析
+            <button class="btn btn-sm btn-ghost" style="float: right;" @click="triggerImageUpload('analysis')">🖼️ 插入图片</button>
+          </label>
           <textarea class="form-textarea" v-model="form.analysis" rows="3" placeholder="输入解题思路与解析..."></textarea>
           <div style="display: flex; gap: 8px; margin-top: 6px;">
             <button class="btn btn-sm" @click="aiExplain" :disabled="aiLoading">
@@ -247,6 +249,8 @@ async function handleImageUpload(e: Event) {
         form.value.content += '\n' + md;
       } else if (uploadTarget === 'answer') {
         form.value.answer += '\n' + md;
+      } else if (uploadTarget === 'analysis') {
+        form.value.analysis += '\n' + md;
       }
       toast('success', '图片已上传');
     } else {

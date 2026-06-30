@@ -263,7 +263,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, provide } from 'vue';
+import { ref, onMounted, onUnmounted, provide } from 'vue';
 import { useRouter } from 'vue-router';
 import CommandPalette from '@/components/CommandPalette.vue';
 
@@ -307,6 +307,10 @@ onMounted(() => {
   if (collapsed === 'true') sidebarCollapsed.value = true;
 
   window.addEventListener('keydown', globalKeyHandler);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', globalKeyHandler);
 });
 
 const showShortcuts = ref(false);

@@ -25,6 +25,17 @@
       </div>
     </div>
 
+    <!-- Extra Stats Row -->
+    <div class="stats-grid" style="margin-top: 12px;">
+      <div v-for="s in extraStats" :key="s.label" class="stat-card-sm">
+        <span class="stat-sm-icon">{{ s.icon }}</span>
+        <div>
+          <div class="stat-sm-value">{{ s.value }}</div>
+          <div class="stat-sm-label">{{ s.label }}</div>
+        </div>
+      </div>
+    </div>
+
     <!-- First-use Onboarding -->
     <div v-if="!loading && stats[0].value === 0" class="onboarding-card">
       <div style="font-size: 48px; margin-bottom: 16px;">🚀</div>
@@ -103,6 +114,14 @@
       </div>
       <div ref="typeChartRef" class="chart-container" style="height: 200px;"></div>
     </div>
+
+    <!-- Review Calendar Heatmap -->
+    <div class="card" style="margin-top: 16px;">
+      <div class="card-header">
+        <span class="card-title">📅 学习日历（最近 90 天）</span>
+      </div>
+      <div ref="calendarRef" class="chart-container" style="height: 160px;"></div>
+    </div>
   </div>
 </template>
 
@@ -116,6 +135,7 @@ import { apiGet } from '@/utils/api';
 const pieChartRef = ref<HTMLElement>();
 const barChartRef = ref<HTMLElement>();
 const typeChartRef = ref<HTMLElement>();
+const calendarRef = ref<HTMLElement>();
 
 const reviewInfo = ref({ flashcardDue: 0, errorDue: 0 });
 
@@ -124,6 +144,13 @@ const stats = ref([
   { icon: '📄', label: '试卷数量', value: 0, gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
   { icon: '🎯', label: '已答题数', value: 0, gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
   { icon: '📊', label: '正确率', value: '0%', gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
+]);
+
+const extraStats = ref([
+  { icon: '📅', label: '今日答题', value: 0 },
+  { icon: '📈', label: '本周答题', value: 0 },
+  { icon: '🆕', label: '今日新增', value: 0 },
+  { icon: '❌', label: '待复习错题', value: 0 },
 ]);
 
 let statsData: any = null;
@@ -136,6 +163,51 @@ function getEChartsTheme() {
     textColor: isDark ? '#94a3b8' : '#64748b',
     bgColor: 'transparent',
   };
+}
+
+function initCalendarChart(trend: any[]) {
+  if (!calendarRef.value || !trend.length) return;
+  const cal = echarts.init(calendarRef.value);
+  chartInstances.push(cal);
+
+  const days = 90;
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+
+  const trendMap = new Map(trend.map((t: any) => [t.date, t.total]));
+  const data: [string, number][] = [];
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    data.push([dateStr, trendMap.get(dateStr) || 0]);
+  }
+
+  const maxVal = Math.max(...data.map(d => d[1]), 1);
+
+  cal.setOption({
+    tooltip: { formatter: (p: any) => `${p.data[0]}: ${p.data[1]} 题` },
+    visualMap: {
+      show: false,
+      min: 0,
+      max: maxVal,
+      inRange: { color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'] },
+    },
+    calendar: {
+      range: [start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)],
+      cellSize: ['auto', 16],
+      itemStyle: { borderWidth: 3, borderColor: '#fff', borderRadius: 3 },
+      splitLine: { show: false },
+      dayLabel: { nameMap: 'ZH', fontSize: 10 },
+      monthLabel: { nameMap: 'ZH', fontSize: 10 },
+      yearLabel: { show: false },
+      left: 40, right: 10, top: 10, bottom: 10,
+    },
+    series: [{
+      type: 'heatmap',
+      coordinateSystem: 'calendar',
+      data,
+    }],
+  });
 }
 
 function initCharts() {
@@ -257,6 +329,27 @@ onMounted(async () => {
     ]);
     if (fcStats.success) reviewInfo.value.flashcardDue = fcStats.data?.due || 0;
     if (errStats.success) reviewInfo.value.errorDue = errStats.data?.dueToday || 0;
+
+    // 加载今日/本周统计
+    try {
+      const reportJson = await apiGet('/study/report?days=7');
+      if (reportJson.success) {
+        const r = reportJson.data;
+        const today = new Date().toISOString().slice(0, 10);
+        const todayTrend = r.trend?.find((t: any) => t.date === today);
+        extraStats.value[0].value = todayTrend?.total || 0;
+        extraStats.value[1].value = r.summary?.totalAnswered || 0;
+        extraStats.value[3].value = errStats.data?.dueToday || 0;
+      }
+    } catch {}
+
+    // 加载学习日历数据
+    try {
+      const calJson = await apiGet('/study/report?days=90');
+      if (calJson.success && calendarRef.value) {
+        initCalendarChart(calJson.data.trend || []);
+      }
+    } catch {}
   } catch (e) {
     console.error('Dashboard load error:', e);
   } finally {
@@ -321,6 +414,21 @@ onMounted(async () => {
   margin-top: 4px;
   font-weight: 500;
 }
+
+.stat-card-sm {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-light);
+  transition: transform var(--transition-fast);
+}
+.stat-card-sm:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.stat-sm-icon { font-size: 24px; }
+.stat-sm-value { font-size: 22px; font-weight: 700; color: var(--text); }
+.stat-sm-label { font-size: 12px; color: var(--text-muted); }
 
 .charts-row {
   display: grid;

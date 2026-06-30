@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { refreshFTS } from '../utils/fts';
 
 export const backupRouter = Router();
 
@@ -111,6 +112,7 @@ backupRouter.post('/import', async (req: Request, res: Response) => {
     }
 
     res.json({ success: true, data: { imported, skipped, total: backup.data.questions.length } });
+    if (imported > 0) refreshFTS();
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

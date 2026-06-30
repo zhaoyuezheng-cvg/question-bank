@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./question-bank.db"
+  url      = env("DATABASE_URL") || "file:./data/question-bank.db"
 }
 
 model Question {
@@ -142,6 +142,7 @@ model ErrorBook {
   @@index([isResolved])
   @@index([userId])
   @@index([nextReview])
+  @@unique([questionId, userId])
 }
 
 // ---- 收藏夹 ----

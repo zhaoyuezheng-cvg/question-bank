@@ -5,6 +5,7 @@ import multer from 'multer';
 import XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
+import { refreshFTS } from '../utils/fts';
 
 export const importRouter = Router();
 
@@ -80,6 +81,7 @@ importRouter.post('/text', async (req: Request, res: Response) => {
       success: true,
       data: { total: questions.length, success, failed, skipped, errors },
     });
+    if (success > 0) refreshFTS();
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -221,6 +223,7 @@ importRouter.post('/excel', upload.single('file'), async (req: Request, res: Res
       success: true,
       data: { total: rows.length, success, failed, skipped, errors },
     });
+    if (success > 0) refreshFTS();
   } catch (err: any) {
     // 清理临时文件
     if (req.file?.path && fs.existsSync(req.file.path)) {

@@ -53,19 +53,12 @@ practiceRouter.post('/errors', async (req: Request, res: Response) => {
     if (!questionId) return res.status(400).json({ success: false, error: '缺少 questionId' });
 
     const now = Math.floor(Date.now() / 1000);
-    // 用 userId + questionId 查找已有错题记录
-    const existing = await prisma.errorBook.findFirst({ where: { questionId, userId } });
-    let item;
-    if (existing) {
-      item = await prisma.errorBook.update({
-        where: { id: existing.id },
-        data: { wrongAnswer: wrongAnswer || '', errorNote, updatedAt: now, isResolved: false, nextReview: now },
-      });
-    } else {
-      item = await prisma.errorBook.create({
-        data: { id: uuid(), questionId, userId, wrongAnswer: wrongAnswer || '', errorNote, nextReview: now, createdAt: now, updatedAt: now },
-      });
-    }
+    // 用 userId + questionId 唯一约束 upsert
+    const item = await prisma.errorBook.upsert({
+      where: { questionId_userId: { questionId, userId } },
+      update: { wrongAnswer: wrongAnswer || '', errorNote, updatedAt: now, isResolved: false, nextReview: now },
+      create: { id: uuid(), questionId, userId, wrongAnswer: wrongAnswer || '', errorNote, nextReview: now, createdAt: now, updatedAt: now },
+    });
 
     res.status(201).json({ success: true, data: item });
   } catch (err: any) {
@@ -247,14 +240,12 @@ practiceRouter.post('/favorites', async (req: Request, res: Response) => {
     if (!questionId) return res.status(400).json({ success: false, error: '缺少 questionId' });
 
     const now = Math.floor(Date.now() / 1000);
-    // 用 userId + questionId 查找已有收藏
-    const existing = await prisma.favorite.findFirst({ where: { questionId, userId } });
-    let item;
-    if (existing) {
-      item = await prisma.favorite.update({ where: { id: existing.id }, data: { note } });
-    } else {
-      item = await prisma.favorite.create({ data: { id: uuid(), questionId, userId, note, createdAt: now } });
-    }
+    // 用 userId + questionId 唯一约束 upsert
+    const item = await prisma.favorite.upsert({
+      where: { questionId_userId: { questionId, userId } },
+      update: { note },
+      create: { id: uuid(), questionId, userId, note, createdAt: now },
+    });
     res.status(201).json({ success: true, data: item });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
